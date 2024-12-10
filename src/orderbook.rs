@@ -108,7 +108,8 @@ impl OrderBook {
         }
     }
 
-    pub fn execute_order(&mut self, side: Side, price: u64, order: Order, order_type: OrderType) -> FillResult {
+    pub fn execute_order(&mut self, side: Side, price: u64, order: Order, 
+                         order_type: OrderType) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         match order_type {
@@ -118,39 +119,21 @@ impl OrderBook {
                         let ask_prices = self.ask_side_book.get_prices_u64_rev();
                         for ask in ask_prices {
                             if price < ask { break; }
-                            Self::process_order_queue(
-                                &mut fills, 
-                                &mut remaining_quantity, 
-                                ask, 
-                                &mut self.ask_side_book
-                            ); 
+                            Self::process_order_queue(&mut fills, &mut remaining_quantity, ask, 
+                                                      &mut self.ask_side_book); 
                         }
-                        Self::process_fills(
-                            remaining_quantity,
-                            fills,
-                            price,
-                            order,
-                            &mut self.bid_side_book
-                        )
+                        Self::process_fills(remaining_quantity, fills, price, order, 
+                                            &mut self.bid_side_book)
                     }
                     Side::Ask => {
                         let bid_prices = self.bid_side_book.get_prices_u64_rev();
                         for bid in bid_prices {
                             if price > bid { break; }
-                            Self::process_order_queue(
-                                &mut fills, 
-                                &mut remaining_quantity, 
-                                bid, 
-                                &mut self.bid_side_book
-                            );
+                            Self::process_order_queue(&mut fills, &mut remaining_quantity, bid, 
+                                                      &mut self.bid_side_book);
                         }
-                        Self::process_fills(
-                            remaining_quantity,
-                            fills,
-                            price,
-                            order,
-                            &mut self.ask_side_book
-                        )
+                        Self::process_fills(remaining_quantity, fills, price, order, 
+                                            &mut self.ask_side_book)
                     }
                 }
             }
@@ -166,40 +149,27 @@ impl OrderBook {
             }
         }
     }
-    fn process_order_queue(
-        fills: &mut Vec<(Uuid, u64, u64)>, 
-        remaining_quantity: &mut u64, 
-        book_price: u64, 
-        book: &mut PriceBook) {
+    fn process_order_queue(fills: &mut Vec<(Uuid, u64, u64)>, remaining_quantity: &mut u64, 
+                           book_price: u64, book: &mut PriceBook) {
         let key = price_to_bytes(book_price);
-        let available_quantity = book
-            .get_total_quantity_at_price(&key);
-        if available_quantity > 0 {
-            if let Some(order_queue) =
-                book.price_map.get_mut(&key) {
-                while !order_queue.is_empty() && *remaining_quantity != 0 {
-                    let book_order = order_queue.front_mut().unwrap();
-                    if book_order.quantity <= *remaining_quantity {
-                        fills.push((book_order.id, book_price, book_order.quantity));
-                        *remaining_quantity -= book_order.quantity;
-                        order_queue.pop_front();
-
-                    } else {
-                        fills.push((book_order.id, book_price, *remaining_quantity));
-                        book_order.quantity -= *remaining_quantity;
-                        *remaining_quantity = 0;
-                    }
+        if let Some(order_queue) = book.price_map.get_mut(&key) {
+            while !order_queue.is_empty() && *remaining_quantity != 0 {
+                let book_order = order_queue.front_mut().unwrap();
+                if book_order.quantity <= *remaining_quantity {
+                    fills.push((book_order.id, book_price, book_order.quantity));
+                    *remaining_quantity -= book_order.quantity;
+                    order_queue.pop_front();
+                } else {
+                    fills.push((book_order.id, book_price, *remaining_quantity));
+                    book_order.quantity -= *remaining_quantity;
+                    *remaining_quantity = 0;
                 }
             }
         }
     }
     
-    fn process_fills(
-        remaining_quantity: u64, 
-        fills: Vec<(Uuid, u64, u64)>,
-        price: u64,
-        order: Order, 
-        book: &mut PriceBook ) -> FillResult {
+    fn process_fills(remaining_quantity: u64, fills: Vec<(Uuid, u64, u64)>, price: u64, 
+                     order: Order, book: &mut PriceBook ) -> FillResult {
         let fill_result;
         if remaining_quantity == 0 {
             fill_result = FillResult::Filled(fills);
@@ -208,7 +178,8 @@ impl OrderBook {
             book.insert(price_to_bytes(price), order);
         } else {
             fill_result = FillResult::PartiallyFilled(fills, (order.id, price, remaining_quantity));
-            book.insert(price_to_bytes(price), Order { id: order.id, quantity: remaining_quantity });
+            book.insert(price_to_bytes(price), Order { 
+                id: order.id, quantity: remaining_quantity });
         }
         fill_result
     }
