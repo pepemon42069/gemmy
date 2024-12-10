@@ -35,8 +35,8 @@ pub struct PriceBook {
 
 #[derive(Debug)]
 pub struct OrderBook {
-    pub max_bid: Vec<u8>,
-    pub min_ask: Vec<u8>,
+    pub max_bid: u64,
+    pub min_ask: u64,
     pub bid_side_book: PriceBook,
     pub ask_side_book: PriceBook
 }
@@ -67,14 +67,22 @@ impl PriceBook {
         }
     }
 
-    // TODO: Check if this is even needed 
-    // pub fn get_prices_u64(&self) -> Vec<u64> {
-    //     self.price_map.keys().map(|k| bytes_to_price(k.clone())).collect()
-    // }
+    pub fn get_ne_prices_u64(&self) -> Vec<u64> {
+        self.price_map.iter()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(k, _)| bytes_to_price(k.clone())).collect()
+    }
 
-    pub fn get_prices_u64_rev(&self) -> Vec<u64> {
-        let prices: Vec<u64> = self.price_map.keys().map(|k| bytes_to_price(k.clone())).collect();
-        prices.into_iter().rev().collect()
+    pub fn get_ne_asc_prices_u64(&self) -> Vec<u64> {
+        let mut prices: Vec<u64> = self.get_ne_prices_u64();
+        prices.sort();
+        prices
+    }
+
+    pub fn get_ne_desc_prices_u64(&self) -> Vec<u64> {
+        let mut prices: Vec<u64> = self.get_ne_prices_u64();
+        prices.sort_by(|a, b| b.cmp(a));
+        prices
     }
 
     pub fn get_total_quantity_at_price(&self, price: &Vec<u8>) -> u64 {
@@ -90,8 +98,8 @@ impl PriceBook {
 impl OrderBook {
     pub fn new() -> Self {
         OrderBook {
-            max_bid: price_to_bytes(u64::MAX),
-            min_ask: price_to_bytes(u64::MIN),
+            max_bid: u64::MAX,
+            min_ask: u64::MIN,
             bid_side_book: PriceBook::new(),
             ask_side_book: PriceBook::new(),
         }
@@ -108,6 +116,20 @@ impl OrderBook {
         }
     }
 
+    pub fn update_max_bid(&mut self) {
+        let bid_prices = self.bid_side_book.get_ne_desc_prices_u64();
+        if let Some(max_bid) = bid_prices.first() {
+            self.max_bid = *max_bid;
+        }
+    }
+
+    pub fn update_min_ask(&mut self) {
+        let ask_prices = self.ask_side_book.get_ne_asc_prices_u64();
+        if let Some(min_ask) = ask_prices.first() {
+            self.min_ask = *min_ask;
+        }
+    }
+
     pub fn execute_order(&mut self, side: Side, price: u64, order: Order, 
                          order_type: OrderType) -> FillResult {
         let mut fills = Vec::new();
@@ -116,24 +138,29 @@ impl OrderBook {
             OrderType::Limit => {
                 match side {
                     Side::Bid => {
-                        let ask_prices = self.ask_side_book.get_prices_u64_rev();
+                        let ask_prices = self.ask_side_book.get_ne_asc_prices_u64();
                         for ask in ask_prices {
                             if price < ask { break; }
                             Self::process_order_queue(&mut fills, &mut remaining_quantity, ask, 
                                                       &mut self.ask_side_book); 
                         }
-                        Self::process_fills(remaining_quantity, fills, price, order, 
-                                            &mut self.bid_side_book)
+                        let fill_result = Self::process_fills(
+                            remaining_quantity, fills, price, order, &mut self.bid_side_book);
+                        self.update_max_bid();
+                        fill_result
                     }
                     Side::Ask => {
-                        let bid_prices = self.bid_side_book.get_prices_u64_rev();
+                        let bid_prices = self.bid_side_book.get_ne_desc_prices_u64();
                         for bid in bid_prices {
                             if price > bid { break; }
                             Self::process_order_queue(&mut fills, &mut remaining_quantity, bid, 
                                                       &mut self.bid_side_book);
                         }
-                        Self::process_fills(remaining_quantity, fills, price, order, 
-                                            &mut self.ask_side_book)
+
+                        let fill_result = Self::process_fills(
+                            remaining_quantity, fills, price, order, &mut self.ask_side_book);
+                        self.update_min_ask();
+                        fill_result
                     }
                 }
             }
@@ -345,12 +372,12 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 700 };
-        let result = book.execute_order(Side::Bid, 130, order, OrderType::Limit);
+        let result = book.execute_order(Side::Bid, 150, order, OrderType::Limit);
         println!("{:#?}", result);
         match result {
             FillResult::PartiallyFilled(..) => {
                 let quantity = book.bid_side_book
-                    .get_total_quantity_at_price(&price_to_bytes(130));
+                    .get_total_quantity_at_price(&price_to_bytes(150));
                 assert_eq!(quantity, 100);
             },
             _ => panic!("order could not be created"),
@@ -392,12 +419,12 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 700 };
-        let result = book.execute_order(Side::Ask, 100, order, OrderType::Limit);
+        let result = book.execute_order(Side::Ask, 90, order, OrderType::Limit);
         println!("{:#?}", result);
         match result {
             FillResult::PartiallyFilled(..) => {
                 let quantity = book.ask_side_book
-                    .get_total_quantity_at_price(&price_to_bytes(100));
+                    .get_total_quantity_at_price(&price_to_bytes(90));
                 assert_eq!(quantity, 100);
             },
             _ => panic!("order could not be created"),
