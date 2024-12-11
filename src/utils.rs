@@ -32,7 +32,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn it_fails_to_convert_bytes_to_price() {
-        let pass: u64 = 256;
         let value: Vec<u8> = vec![0, 0, 0, 0, 0, 1, 0];
         bytes_to_price(value);
     }
