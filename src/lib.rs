@@ -1,4 +1,5 @@
-// TODO: see if this needs to be disabled
-#![allow(dead_code)]
-mod orderbook;
+pub mod orderbook;
 mod utils;
+mod pricebook;
+mod models;
+mod orderrequest;
