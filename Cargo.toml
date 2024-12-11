@@ -7,3 +7,19 @@ edition = "2021"
 qp-trie = { version = "0.8.2" }
 uuid = { version = "1.11.0", features = ["v4", "serde"] }
 serde = { version = "1.0.216", features = ["derive"] }
+rand = "0.8.5"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[profile.bench]
+opt-level = 3
+debug = false
+debug-assertions = false
+incremental = false
+overflow-checks = false
+rpath = false
+lto = "thin"
+codegen-units = 1
+
+[[bench]]
+name = "bench_main"
+harness = false
