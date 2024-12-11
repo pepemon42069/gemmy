@@ -170,7 +170,8 @@ impl OrderBook {
         }
         let fill_result = Self::process_fills(
             remaining_quantity, fills, price, order, &mut self.bid_side_book);
-        self.update_max_bid();
+        // TODO: 1 bottleneck found
+        // self.update_max_bid();
         fill_result
     }
 
@@ -248,14 +249,14 @@ impl OrderBook {
     fn process_fills(remaining_quantity: u64, fills: Vec<(Uuid, u64, u64)>, price: u64, 
                      order: Order, book: &mut PriceBook ) -> FillResult {
         let fill_result;
-        if remaining_quantity == 0 {
-            fill_result = FillResult::Filled(fills);
-        } else if remaining_quantity == order.quantity {
+        if remaining_quantity == order.quantity {
             fill_result = FillResult::Created((order.id, price, remaining_quantity));
             book.insert(price, order);
-        } else {
+        } else if remaining_quantity > 0 {
             fill_result = FillResult::PartiallyFilled(fills, (order.id, price, remaining_quantity));
             book.insert(price, Order { id: order.id, quantity: remaining_quantity });
+        } else {
+            fill_result = FillResult::Filled(fills);
         }
         fill_result
     }

@@ -7,7 +7,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut orderbook = OrderBook::new();
     c.bench_function("criterion_benchmark", |b| {
         b.iter(|| {
-            for i in 0..1000 {
+            for i in 0..100_000 {
                 let operation = OrderOperation::Place(
                     OrderRequest::new(12345 + i, i, Side::Bid, OrderType::Limit));
                 orderbook.execute(operation);

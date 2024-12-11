@@ -16,7 +16,7 @@ impl PriceBook {
     pub fn insert(&mut self, price: u64, order: Order) {
         self.price_map
             .entry(price)
-            .or_insert_with(|| VecDeque::with_capacity(50000))
+            .or_insert_with(|| VecDeque::with_capacity(10))
             .push_back(order);
     }
 
@@ -72,7 +72,7 @@ pub(crate) mod tests {
         let (_, mut book) = create_test_price_book(100, 110);
         let order = Order { id: Uuid::new_v4(), quantity: 500 };
         let price = 200;
-        book.insert(price.clone(), order);
+        book.insert(price, order);
         assert_eq!(book.get_total_quantity_at_price(&price), 500u64);
     }
 
@@ -81,7 +81,7 @@ pub(crate) mod tests {
         let (_, mut book) = create_test_price_book(100, 110);
         let price = 100;
         let order = Order { id: Uuid::new_v4(), quantity: 200 };
-        book.insert(price.clone(), order);
+        book.insert(price, order);
         assert_eq!(book.get_total_quantity_at_price(&price), 500u64);
     }
 
