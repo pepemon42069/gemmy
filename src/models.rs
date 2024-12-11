@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::orderrequest::OrderRequest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -23,16 +22,16 @@ pub enum OrderOperation {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum FillResult {
-    Filled(Vec<(Uuid, u64, u64)>),
-    PartiallyFilled(Vec<(Uuid, u64, u64)>, (Uuid, u64, u64)),
-    Created((Uuid, u64, u64))
+    Filled(Vec<(u128, u64, u64)>),
+    PartiallyFilled(Vec<(u128, u64, u64)>, (u128, u64, u64)),
+    Created((u128, u64, u64))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutionResult {
     Executed(FillResult),
     Modified(Option<FillResult>),
-    Cancelled(Uuid)
+    Cancelled(u128)
 }
 
 #[derive(Debug)]
@@ -44,6 +43,6 @@ pub(crate) enum ModifyResult {
 
 #[derive(Debug)]
 pub(crate) struct Order {
-    pub id: Uuid,
+    pub id: u128,
     pub quantity: u64
 }

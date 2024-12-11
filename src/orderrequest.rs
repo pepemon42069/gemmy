@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::models::{Order, OrderType, Side};
 use crate::utils::get_timestamp_now_micros;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
-    pub id: Uuid,
+    pub id: u128,
     pub price: u64,
     pub quantity: u64,
     pub side: Side,
@@ -14,9 +13,9 @@ pub struct OrderRequest {
 }
 
 impl OrderRequest {
-    pub fn new(price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
+    pub fn new(id: u128, price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
         OrderRequest {
-            id: Uuid::new_v4(),
+            id,
             price,
             quantity,
             side,

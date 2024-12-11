@@ -4,12 +4,12 @@ use gemmy::orderbook::OrderBook;
 use gemmy::orderrequest::OrderRequest;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut orderbook = OrderBook::new();
+    let mut orderbook = OrderBook::default();
     c.bench_function("criterion_benchmark", |b| {
         b.iter(|| {
             for i in 0..100_000 {
                 let operation = OrderOperation::Place(
-                    OrderRequest::new(12345 + i, i, Side::Bid, OrderType::Limit));
+                    OrderRequest::new(i as u128, 12345 + i, i, Side::Bid, OrderType::Limit));
                 orderbook.execute(operation);
             }
         })

@@ -1,11 +1,10 @@
 use std::collections::VecDeque;
-use uuid::Uuid;
 use crate::models::{ExecutionResult, FillResult, ModifyResult, Order, OrderOperation, OrderType, Side};
 use crate::pricebook::PriceBook;
 
 #[derive(Debug)]
 pub struct OrderBook {
-    pub id: Uuid,
+    pub id: u128,
     pub max_bid: u64,
     pub min_ask: u64,
     bid_side_book: PriceBook,
@@ -14,14 +13,14 @@ pub struct OrderBook {
 
 impl Default for OrderBook {
     fn default() -> Self {
-        Self::new()
+        Self::new(0)
     }
 }
 
 impl OrderBook {
-    pub fn new() -> Self {
+    pub fn new(id: u128) -> Self {
         OrderBook {
-            id: Uuid::new_v4(),
+            id,
             max_bid: u64::MAX,
             min_ask: u64::MIN,
             bid_side_book: PriceBook::new(),
@@ -101,18 +100,18 @@ impl OrderBook {
         orders
     }
     
-    fn cancel_bid_order(&mut self, id: Uuid, price: u64) {
+    fn cancel_bid_order(&mut self, id: u128, price: u64) {
         self.bid_side_book.remove(&id, &price);
         self.update_max_bid();
     }
 
-    fn cancel_ask_order(&mut self, id: Uuid, price: u64) {
+    fn cancel_ask_order(&mut self, id: u128, price: u64) {
         self.ask_side_book.remove(&id, &price);
         self.update_min_ask();
     }
 
     fn modify_limit_buy_order(
-        &mut self, id: Uuid, price: u64, new_quantity: u64, new_price: u64) -> Option<FillResult> {
+        &mut self, id: u128, price: u64, new_quantity: u64, new_price: u64) -> Option<FillResult> {
         let result = Self::process_order_modification(
             &mut self.bid_side_book, id, price, new_quantity, new_price);
         match result {
@@ -128,7 +127,7 @@ impl OrderBook {
     }
 
     fn modify_limit_ask_order(
-        &mut self, id: Uuid, price: u64, new_quantity: u64, new_price: u64) -> Option<FillResult> {
+        &mut self, id: u128, price: u64, new_quantity: u64, new_price: u64) -> Option<FillResult> {
         let result = Self::process_order_modification(
             &mut self.ask_side_book, id, price, new_quantity, new_price);
         match result {
@@ -230,7 +229,7 @@ impl OrderBook {
         fill_result
     }
 
-    fn process_order_queue(fills: &mut Vec<(Uuid, u64, u64)>, remaining_quantity: &mut u64, 
+    fn process_order_queue(fills: &mut Vec<(u128, u64, u64)>, remaining_quantity: &mut u64, 
                            book_price: u64, order_queue: &mut VecDeque<Order>) {
         while !order_queue.is_empty() && *remaining_quantity != 0 {
             let book_order = order_queue.front_mut().unwrap();
@@ -246,7 +245,7 @@ impl OrderBook {
         }
     }
     
-    fn process_fills(remaining_quantity: u64, fills: Vec<(Uuid, u64, u64)>, price: u64, 
+    fn process_fills(remaining_quantity: u64, fills: Vec<(u128, u64, u64)>, price: u64, 
                      order: Order, book: &mut PriceBook ) -> FillResult {
         let fill_result;
         if remaining_quantity == order.quantity {
@@ -261,7 +260,7 @@ impl OrderBook {
         fill_result
     }
 
-    fn process_order_modification(book: &mut PriceBook, id: Uuid, price: u64,
+    fn process_order_modification(book: &mut PriceBook, id: u128, price: u64,
                                   new_price: u64, new_quantity: u64) -> ModifyResult {
         if let Some(order_queue) = book.price_map.get_mut(&price) {
             if price == new_price {
@@ -281,14 +280,13 @@ impl OrderBook {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use uuid::Uuid;
     use crate::models::Order;
     use crate::orderbook::{ExecutionResult, FillResult, OrderBook, OrderOperation, OrderType, Side};
     use crate::orderrequest::OrderRequest;
     use crate::pricebook::tests::create_test_price_book;
 
-    pub fn create_test_order_book() -> ((Uuid, Uuid, Uuid), (Uuid, Uuid, Uuid), OrderBook) {
-        let mut book = OrderBook::new();
+    pub fn create_test_order_book() -> ((u128, u128, u128), (u128, u128, u128), OrderBook) {
+        let mut book = OrderBook::default();
         let (ids_bid, bid_side_book) = create_test_price_book(100, 110);
         let (ids_ask, ask_side_book) = create_test_price_book(120, 130);
         book.bid_side_book = bid_side_book;
@@ -313,7 +311,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_bid_that_is_created() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 500 };
         let result = book.limit_bid_order(100, order);
         println!("{:#?}", result);
@@ -326,7 +324,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_bid_that_is_filled() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 400 };
         let result = book.limit_bid_order(130, order);
         println!("{:#?}", result);
@@ -343,7 +341,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_bid_that_is_partially_filled() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 700 };
         let result = book.limit_bid_order(150, order);
         println!("{:#?}", result);
@@ -360,7 +358,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_ask_that_is_created() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 250 };
         let result = book.limit_ask_order(120, order);
         println!("{:#?}", result);
@@ -373,7 +371,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_ask_that_is_filled() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 400 };
         let result = book.limit_ask_order(100, order);
         println!("{:#?}", result);
@@ -390,7 +388,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_limit_ask_that_is_partially_filled() {
         let (.., mut book) = create_test_order_book();
-        let id = Uuid::new_v4();
+        let id = 5;
         let order = Order { id, quantity: 700 };
         let result = book.limit_ask_order(90, order);
         println!("{:#?}", result);
@@ -446,7 +444,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_market_bid_filled() {
         let (.., mut book) = create_test_order_book();
-        let order = Order { id: Uuid::new_v4(), quantity: 500 };
+        let order = Order { id: 5, quantity: 500 };
         let result = book.market_bid_order(order);
         println!("{:#?}", result);
         match result {
@@ -461,7 +459,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_market_ask_filled() {
         let (.., mut book) = create_test_order_book();
-        let order = Order { id: Uuid::new_v4(), quantity: 500 };
+        let order = Order { id: 5, quantity: 500 };
         let result = book.market_ask_order(order);
         println!("{:#?}", result);
         match result {
@@ -476,7 +474,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_market_bid_partially_filled() {
         let (.., mut book) = create_test_order_book();
-        let order = Order { id: Uuid::new_v4(), quantity: 700 };
+        let order = Order { id: 5, quantity: 700 };
         let result = book.market_bid_order(order);
         println!("{:#?}", result);
         match result {
@@ -492,7 +490,7 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_market_ask_partially_filled() {
         let (.., mut book) = create_test_order_book();
-        let order = Order { id: Uuid::new_v4(), quantity: 700 };
+        let order = Order { id: 5, quantity: 700 };
         let result = book.market_ask_order(order);
         println!("{:#?}", result);
         match result {
@@ -510,10 +508,10 @@ pub(crate) mod tests {
     #[test]
     fn it_executes_a_series_of_orders() {
         let (_, _, mut book) = create_test_order_book();
-        let order_request = OrderRequest::new(110, 100, Side::Bid, OrderType::Limit);
+        let order_request = OrderRequest::new(5,110, 100, Side::Bid, OrderType::Limit);
         let operations = vec![
             OrderOperation::Place(order_request.clone()),
-            OrderOperation::Place(OrderRequest::new(110, 200, Side::Ask, OrderType::Market)),
+            OrderOperation::Place(OrderRequest::new(6, 110, 200, Side::Ask, OrderType::Market)),
             OrderOperation::Modify(order_request.clone(), 110, 200),
             OrderOperation::Cancel(order_request.clone())
         ];
