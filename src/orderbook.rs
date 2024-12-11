@@ -104,10 +104,12 @@ impl OrderBook {
     
     fn cancel_bid_order(&mut self, id: Uuid, price: u64) {
         self.bid_side_book.remove(&id, &price_to_bytes(price));
+        self.update_max_bid();
     }
 
     fn cancel_ask_order(&mut self, id: Uuid, price: u64) {
         self.ask_side_book.remove(&id, &price_to_bytes(price));
+        self.update_max_bid();
     }
 
     fn modify_limit_buy_order(
