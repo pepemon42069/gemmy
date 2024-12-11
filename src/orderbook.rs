@@ -23,6 +23,13 @@ pub enum FillResult {
 }
 
 #[derive(Debug)]
+pub enum ModifyResult {
+    CreateNewOrder,
+    ModifiedOrder,
+    Unchanged
+}
+
+#[derive(Debug)]
 pub struct Order {
     id: Uuid,
     quantity: u64
@@ -114,6 +121,52 @@ impl OrderBook {
                 self.bid_side_book.remove(id, &price_to_bytes(price));
             }
         }
+    }
+    
+    pub fn modify_limit_order(&mut self, side: Side, id: Uuid, price: u64,
+                              new_quantity: u64, new_price: u64) {
+        let mut result = ModifyResult::Unchanged;
+        match side {
+            Side::Bid => {
+                result = Self::process_order_modification(
+                    &mut self.bid_side_book, id, price, new_quantity, new_price);
+            },
+            Side::Ask => {
+                result = Self::process_order_modification(
+                    &mut self.ask_side_book, id, price, new_quantity, new_price)
+            }
+        }
+        match result {
+            ModifyResult::CreateNewOrder => {
+                self.execute_order(
+                    side, new_price, Order {id, quantity: new_quantity }, OrderType::Limit);
+            }
+            ModifyResult::ModifiedOrder => {
+                match side {
+                    Side::Bid => self.update_max_bid(),
+                    Side::Ask => self.update_min_ask()
+                }
+            }
+            ModifyResult::Unchanged => ()
+        }
+    }
+    
+    fn process_order_modification(book: &mut PriceBook, id: Uuid, price: u64,
+                                  new_price: u64, new_quantity: u64) -> ModifyResult {
+        let key = price_to_bytes(price);
+        if let Some(order_queue) = book.price_map.get_mut(&key) {
+            if price == new_price {
+                if let Some(order) = order_queue.iter_mut()
+                    .find(|o| o.id == id && o.quantity != new_quantity) {
+                    order.quantity = new_quantity;
+                    return ModifyResult::ModifiedOrder;
+                }
+            } else if let Some(index) = order_queue.iter().position(|o| o.id == id) {
+                order_queue.remove(index);
+                return ModifyResult::CreateNewOrder;
+            }
+        }
+        ModifyResult::Unchanged
     }
 
     pub fn update_max_bid(&mut self) {
@@ -429,5 +482,30 @@ mod tests {
             },
             _ => panic!("order could not be created"),
         }
+    }
+    
+    #[test]
+    fn it_modifies_limit_bid_order_quantity() {
+        let ((id, ..), _, mut book) = create_test_order_book();
+        book.modify_limit_order(Side::Bid, id, 100, 150, 100);
+        assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 350);
+    }
+
+    #[test]
+    fn it_modifies_limit_bid_order_price() {
+        let ((id, ..), _, mut book) = create_test_order_book();
+        book.modify_limit_order(Side::Bid, id, 100, 400, 120);
+        let quantity_at_100 = book.bid_side_book.get_total_quantity_at_price(
+            &price_to_bytes(100));
+        let quantity_at_120 = book.bid_side_book.get_total_quantity_at_price(
+            &price_to_bytes(120));
+        assert!(quantity_at_100 == 200 && quantity_at_120 == 100);
+    }
+    
+    #[test]
+    fn it_modifies_nothing_when_price_and_quantity_are_same() {
+        let ((id, ..), _, mut book) = create_test_order_book();
+        book.modify_limit_order(Side::Bid, id, 100, 100, 100);
+        assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 300);
     }
 }
