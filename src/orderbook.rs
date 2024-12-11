@@ -144,22 +144,16 @@ impl OrderBook {
     }
 
     fn update_max_bid(&mut self) {
-        let max_bid = self.bid_side_book.price_map.iter()
-            .filter(|(_, order_queue)| !order_queue.is_empty())
-            .map(|(price, _)| *price)
-            .max();
-        if let Some(value) = max_bid {
-            self.max_bid = value;
+        if let Some((price, _)) = self.bid_side_book.price_map.iter()
+            .filter(|(_, order_queue)| !order_queue.is_empty()).last(){
+            self.max_bid = *price;
         }
     }
 
     fn update_min_ask(&mut self) {
-        let min_ask = self.ask_side_book.price_map.iter()
-            .filter(|(_, order_queue)| !order_queue.is_empty())
-            .map(|(price, _)| *price)
-            .min();
-        if let Some(value) = min_ask {
-            self.min_ask = value;
+        if let Some((price, _)) = self.ask_side_book.price_map.iter().rev()
+            .filter(|(_, order_queue)| !order_queue.is_empty()).last() {
+            self.min_ask = *price;
         }
     }
 
