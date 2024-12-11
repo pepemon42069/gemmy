@@ -168,6 +168,9 @@ impl OrderBook {
         let mut remaining_quantity = order.quantity;
         let asks = self.ask_side_book.price_map.iter_mut();
         for (ask, order_queue) in asks {
+            if order_queue.is_empty() {
+                continue;
+            }
             if price < *ask { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
@@ -182,6 +185,9 @@ impl OrderBook {
         let mut remaining_quantity = order.quantity;
         let bids = self.bid_side_book.price_map.iter_mut().rev();
         for (bid, order_queue) in bids {
+            if order_queue.is_empty() {
+                continue;
+            }
             if price > *bid { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
@@ -196,6 +202,9 @@ impl OrderBook {
         let mut remaining_quantity = order.quantity;
         let asks = self.ask_side_book.price_map.iter_mut();
         for (ask, order_queue) in asks {
+            if order_queue.is_empty() {
+                continue;
+            }
             if remaining_quantity == 0 { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
@@ -212,11 +221,14 @@ impl OrderBook {
         let mut remaining_quantity = order.quantity;
         let bids = self.bid_side_book.price_map.iter_mut().rev();
         for (bid, order_queue) in bids {
+            if order_queue.is_empty() {
+                continue;
+            }
             if remaining_quantity == 0 { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
-        let market_price =  fills.iter()
-            .map(|(_, fill_price, _)| *fill_price).min().unwrap_or(self.max_bid);
+        let market_price = fills.iter()
+            .map(|(_, fill_price, _)| *fill_price).min().unwrap_or(self.min_ask);
         let fill_result = Self::process_fills(
             remaining_quantity, fills, market_price, order, &mut self.ask_side_book);
         self.update_min_ask();
@@ -249,8 +261,7 @@ impl OrderBook {
             book.insert(price, order);
         } else {
             fill_result = FillResult::PartiallyFilled(fills, (order.id, price, remaining_quantity));
-            book.insert(price, Order { 
-                id: order.id, quantity: remaining_quantity });
+            book.insert(price, Order { id: order.id, quantity: remaining_quantity });
         }
         fill_result
     }
