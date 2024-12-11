@@ -14,18 +14,10 @@ impl PriceBook {
     }
 
     pub fn insert(&mut self, price: u64, order: Order) {
-        const MAX_ORDERS_AT_PRICE: usize = 50000;
-
-        match self.price_map.get_mut(&price) {
-            Some(order_queue) => {
-                order_queue.push_back(order);
-            }
-            None => {
-                let mut queue = VecDeque::with_capacity(MAX_ORDERS_AT_PRICE);
-                queue.push_back(order);
-                self.price_map.insert(price, queue);
-            }
-        }
+        self.price_map
+            .entry(price)
+            .or_insert_with(|| VecDeque::with_capacity(50000))
+            .push_back(order);
     }
 
     pub fn remove(&mut self, id: &Uuid, price: &u64) {
