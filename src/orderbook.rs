@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use uuid::Uuid;
 use crate::models::{ExecutionResult, FillResult, ModifyResult, Order, OrderOperation, OrderType, Side};
 use crate::pricebook::PriceBook;
@@ -90,12 +91,12 @@ impl OrderBook {
         let bid_side_map = &self.bid_side_book.price_map;
         for (price, _) in bid_side_map.iter() {
             let quantity = self.bid_side_book.get_total_quantity_at_price(price);
-            orders.push((price.clone(), quantity, Side::Bid));
+            orders.push((*price, quantity, Side::Bid));
         }
         let ask_side_map = &self.ask_side_book.price_map;
         for (price, _) in ask_side_map.iter() {
             let quantity = self.ask_side_book.get_total_quantity_at_price(price);
-            orders.push((price.clone(), quantity, Side::Ask));
+            orders.push((*price, quantity, Side::Ask));
         }
         orders
     }
@@ -145,7 +146,7 @@ impl OrderBook {
     fn update_max_bid(&mut self) {
         let max_bid = self.bid_side_book.price_map.iter()
             .filter(|(_, order_queue)| !order_queue.is_empty())
-            .map(|(price, _)| price.clone())
+            .map(|(price, _)| *price)
             .max();
         if let Some(value) = max_bid {
             self.max_bid = value;
@@ -155,7 +156,7 @@ impl OrderBook {
     fn update_min_ask(&mut self) {
         let min_ask = self.ask_side_book.price_map.iter()
             .filter(|(_, order_queue)| !order_queue.is_empty())
-            .map(|(price, _)| price.clone())
+            .map(|(price, _)| *price)
             .min();
         if let Some(value) = min_ask {
             self.min_ask = value;
@@ -165,11 +166,10 @@ impl OrderBook {
     fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let ask_prices = self.ask_side_book.price_map.keys().cloned().collect::<Vec<_>>();
-        for ask in ask_prices {
-            if price < ask { break; }
-            Self::process_order_queue(
-                &mut fills, &mut remaining_quantity, ask, &mut self.ask_side_book);
+        let asks = self.ask_side_book.price_map.iter_mut();
+        for (ask, order_queue) in asks {
+            if price < *ask { break; }
+            Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
         let fill_result = Self::process_fills(
             remaining_quantity, fills, price, order, &mut self.bid_side_book);
@@ -180,11 +180,10 @@ impl OrderBook {
     fn limit_ask_order(&mut self, price: u64, order: Order) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let bid_prices = self.bid_side_book.price_map.keys().rev().cloned().collect::<Vec<_>>();
-        for bid in bid_prices {
-            if price > bid { break; }
-            Self::process_order_queue(
-                &mut fills, &mut remaining_quantity, bid, &mut self.bid_side_book);
+        let bids = self.bid_side_book.price_map.iter_mut().rev();
+        for (bid, order_queue) in bids {
+            if price > *bid { break; }
+            Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
         let fill_result = Self::process_fills(
             remaining_quantity, fills, price, order, &mut self.ask_side_book);
@@ -195,11 +194,10 @@ impl OrderBook {
     fn market_bid_order(&mut self, order: Order) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let ask_prices = self.ask_side_book.price_map.keys().cloned().collect::<Vec<_>>();
-        for ask in ask_prices {
+        let asks = self.ask_side_book.price_map.iter_mut();
+        for (ask, order_queue) in asks {
             if remaining_quantity == 0 { break; }
-            Self::process_order_queue(
-                &mut fills, &mut remaining_quantity, ask, &mut self.ask_side_book);
+            Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
         let market_price = fills.iter()
             .map(|(_, fill_price, _)| *fill_price).max().unwrap_or(self.max_bid);
@@ -212,11 +210,10 @@ impl OrderBook {
     fn market_ask_order(&mut self, order: Order) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let bid_prices = self.bid_side_book.price_map.keys().rev().cloned().collect::<Vec<_>>();
-        for bid in bid_prices {
+        let bids = self.bid_side_book.price_map.iter_mut().rev();
+        for (bid, order_queue) in bids {
             if remaining_quantity == 0 { break; }
-            Self::process_order_queue(
-                &mut fills, &mut remaining_quantity, bid, &mut self.bid_side_book);
+            Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
         let market_price =  fills.iter()
             .map(|(_, fill_price, _)| *fill_price).min().unwrap_or(self.max_bid);
@@ -227,19 +224,17 @@ impl OrderBook {
     }
 
     fn process_order_queue(fills: &mut Vec<(Uuid, u64, u64)>, remaining_quantity: &mut u64, 
-                           book_price: u64, book: &mut PriceBook) {
-        if let Some(order_queue) = book.price_map.get_mut(&book_price) {
-            while !order_queue.is_empty() && *remaining_quantity != 0 {
-                let book_order = order_queue.front_mut().unwrap();
-                if book_order.quantity <= *remaining_quantity {
-                    fills.push((book_order.id, book_price, book_order.quantity));
-                    *remaining_quantity -= book_order.quantity;
-                    order_queue.pop_front();
-                } else {
-                    fills.push((book_order.id, book_price, *remaining_quantity));
-                    book_order.quantity -= *remaining_quantity;
-                    *remaining_quantity = 0;
-                }
+                           book_price: u64, order_queue: &mut VecDeque<Order>) {
+        while !order_queue.is_empty() && *remaining_quantity != 0 {
+            let book_order = order_queue.front_mut().unwrap();
+            if book_order.quantity <= *remaining_quantity {
+                fills.push((book_order.id, book_price, book_order.quantity));
+                *remaining_quantity -= book_order.quantity;
+                order_queue.pop_front();
+            } else {
+                fills.push((book_order.id, book_price, *remaining_quantity));
+                book_order.quantity -= *remaining_quantity;
+                *remaining_quantity = 0;
             }
         }
     }
