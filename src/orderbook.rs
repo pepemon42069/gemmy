@@ -109,7 +109,7 @@ impl OrderBook {
 
     fn cancel_ask_order(&mut self, id: Uuid, price: u64) {
         self.ask_side_book.remove(&id, &price_to_bytes(price));
-        self.update_max_bid();
+        self.update_min_ask();
     }
 
     fn modify_limit_buy_order(
