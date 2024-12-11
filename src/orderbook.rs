@@ -112,45 +112,44 @@ impl OrderBook {
         }
     }
     
-    pub fn cancel_order(&mut self, side: Side, id: &Uuid, price: u64) {
-        match side {
-            Side::Bid => {
-                self.bid_side_book.remove(id, &price_to_bytes(price));
-            }
-            Side::Ask => {
-                self.bid_side_book.remove(id, &price_to_bytes(price));
-            }
-        }
+    pub fn cancel_bid_order(&mut self, id: &Uuid, price: u64) {
+        self.bid_side_book.remove(id, &price_to_bytes(price));
     }
-    
-    pub fn modify_limit_order(&mut self, side: Side, id: Uuid, price: u64,
-                              new_quantity: u64, new_price: u64) {
-        let mut result = ModifyResult::Unchanged;
-        match side {
-            Side::Bid => {
-                result = Self::process_order_modification(
-                    &mut self.bid_side_book, id, price, new_quantity, new_price);
-            },
-            Side::Ask => {
-                result = Self::process_order_modification(
-                    &mut self.ask_side_book, id, price, new_quantity, new_price)
-            }
-        }
+
+    pub fn cancel_ask_order(&mut self, id: &Uuid, price: u64) {
+        self.ask_side_book.remove(id, &price_to_bytes(price));
+    }
+
+    pub fn modify_limit_buy_order(
+        &mut self, id: Uuid, price: u64, new_quantity: u64, new_price: u64) {
+        let result = Self::process_order_modification(
+            &mut self.bid_side_book, id, price, new_quantity, new_price);
         match result {
             ModifyResult::CreateNewOrder => {
-                self.execute_order(
-                    side, new_price, Order {id, quantity: new_quantity }, OrderType::Limit);
+                self.limit_bid_order(new_price, Order {id, quantity: new_quantity });
             }
             ModifyResult::ModifiedOrder => {
-                match side {
-                    Side::Bid => self.update_max_bid(),
-                    Side::Ask => self.update_min_ask()
-                }
+                self.update_max_bid()
             }
-            ModifyResult::Unchanged => ()
+            _ => ()
         }
     }
-    
+
+    pub fn modify_limit_ask_order(
+        &mut self, id: Uuid, price: u64, new_quantity: u64, new_price: u64) {
+        let result = Self::process_order_modification(
+            &mut self.ask_side_book, id, price, new_quantity, new_price);
+        match result {
+            ModifyResult::CreateNewOrder => {
+                self.limit_ask_order(new_price, Order {id, quantity: new_quantity });
+            }
+            ModifyResult::ModifiedOrder => {
+                self.update_min_ask()
+            }
+            _ => ()
+        }
+    }
+
     fn process_order_modification(book: &mut PriceBook, id: Uuid, price: u64,
                                   new_price: u64, new_quantity: u64) -> ModifyResult {
         let key = price_to_bytes(price);
@@ -183,52 +182,70 @@ impl OrderBook {
         }
     }
 
-    pub fn execute_order(&mut self, side: Side, price: u64, order: Order, 
-                         order_type: OrderType) -> FillResult {
+    pub fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
         let mut fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        match order_type {
-            OrderType::Limit => {
-                match side {
-                    Side::Bid => {
-                        let ask_prices = self.ask_side_book.get_ne_asc_prices_u64();
-                        for ask in ask_prices {
-                            if price < ask { break; }
-                            Self::process_order_queue(&mut fills, &mut remaining_quantity, ask, 
-                                                      &mut self.ask_side_book); 
-                        }
-                        let fill_result = Self::process_fills(
-                            remaining_quantity, fills, price, order, &mut self.bid_side_book);
-                        self.update_max_bid();
-                        fill_result
-                    }
-                    Side::Ask => {
-                        let bid_prices = self.bid_side_book.get_ne_desc_prices_u64();
-                        for bid in bid_prices {
-                            if price > bid { break; }
-                            Self::process_order_queue(&mut fills, &mut remaining_quantity, bid, 
-                                                      &mut self.bid_side_book);
-                        }
-
-                        let fill_result = Self::process_fills(
-                            remaining_quantity, fills, price, order, &mut self.ask_side_book);
-                        self.update_min_ask();
-                        fill_result
-                    }
-                }
-            }
-            OrderType::Market => {
-                match side {
-                    Side::Bid => {
-                        unimplemented!()
-                    }
-                    Side::Ask => {
-                        unimplemented!()
-                    }
-                }
-            }
+        let ask_prices = self.ask_side_book.get_ne_asc_prices_u64();
+        for ask in ask_prices {
+            if price < ask { break; }
+            Self::process_order_queue(
+                &mut fills, &mut remaining_quantity, ask, &mut self.ask_side_book);
         }
+        let fill_result = Self::process_fills(
+            remaining_quantity, fills, price, order, &mut self.bid_side_book);
+        self.update_max_bid();
+        fill_result
     }
+
+    pub fn limit_ask_order(&mut self, price: u64, order: Order) -> FillResult {
+        let mut fills = Vec::new();
+        let mut remaining_quantity = order.quantity;
+        let bid_prices = self.bid_side_book.get_ne_desc_prices_u64();
+        for bid in bid_prices {
+            if price > bid { break; }
+            Self::process_order_queue(
+                &mut fills, &mut remaining_quantity, bid, &mut self.bid_side_book);
+        }
+        let fill_result = Self::process_fills(
+            remaining_quantity, fills, price, order, &mut self.ask_side_book);
+        self.update_min_ask();
+        fill_result
+    }
+
+    pub fn market_bid_order(&mut self, order: Order) -> FillResult {
+        let mut fills = Vec::new();
+        let mut remaining_quantity = order.quantity;
+        let ask_prices = self.ask_side_book.get_ne_asc_prices_u64();
+        for ask in ask_prices {
+            if remaining_quantity == 0 { break; }
+            Self::process_order_queue(
+                &mut fills, &mut remaining_quantity, ask, &mut self.ask_side_book);
+        }
+        let market_price = fills.iter()
+            .map(|(_, fill_price, _)| *fill_price).max().unwrap_or(self.max_bid);
+        let fill_result = Self::process_fills(
+            remaining_quantity, fills, market_price, order, &mut self.bid_side_book);
+        self.update_max_bid();
+        fill_result
+    }
+
+    pub fn market_ask_order(&mut self, order: Order) -> FillResult {
+        let mut fills = Vec::new();
+        let mut remaining_quantity = order.quantity;
+        let bid_prices = self.bid_side_book.get_ne_desc_prices_u64();
+        for bid in bid_prices {
+            if remaining_quantity == 0 { break; }
+            Self::process_order_queue(
+                &mut fills, &mut remaining_quantity, bid, &mut self.bid_side_book);
+        }
+        let market_price =  fills.iter()
+            .map(|(_, fill_price, _)| *fill_price).min().unwrap_or(self.max_bid);
+        let fill_result = Self::process_fills(
+            remaining_quantity, fills, market_price, order, &mut self.ask_side_book);
+        self.update_min_ask();
+        fill_result
+    }
+
     fn process_order_queue(fills: &mut Vec<(Uuid, u64, u64)>, remaining_quantity: &mut u64, 
                            book_price: u64, book: &mut PriceBook) {
         let key = price_to_bytes(book_price);
@@ -269,7 +286,7 @@ impl OrderBook {
 mod tests {
     use std::collections::{VecDeque};
     use uuid::Uuid;
-    use crate::orderbook::{FillResult, Order, OrderBook, OrderType, PriceBook, Side};
+    use crate::orderbook::{FillResult, Order, OrderBook, PriceBook};
 
     use crate::utils::price_to_bytes;
 
@@ -379,15 +396,15 @@ mod tests {
     #[test]
     fn it_cancels_order_when_it_exists() {
         let ((o100i1, ..), _, mut book) = create_test_order_book();
-        book.cancel_order(Side::Bid, &o100i1, 100);
+        book.cancel_bid_order(&o100i1, 100);
         assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 200u64);
     }
 
     #[test]
     fn it_cancels_nothing_when_order_does_not_exist() {
         let ((o100i1, ..), _, mut book) = create_test_order_book();
-        book.cancel_order(Side::Ask, &o100i1, 100);
-        assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 200u64);
+        book.cancel_ask_order(&o100i1, 130);
+        assert_eq!(book.ask_side_book.get_total_quantity_at_price(&price_to_bytes(130)), 300u64);
     }
 
     #[test]
@@ -395,11 +412,11 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 500 };
-        let result = book.execute_order(Side::Bid, 100, order, OrderType::Limit);
+        let result = book.limit_bid_order(100, order);
         println!("{:#?}", result);
         match result {
             FillResult::Created((order_id, ..)) => assert_eq!(order_id, id),
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test"),
         }
     }
 
@@ -408,7 +425,7 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 400 };
-        let result = book.execute_order(Side::Bid, 130, order, OrderType::Limit);
+        let result = book.limit_bid_order(130, order);
         println!("{:#?}", result);
         match result {
             FillResult::Filled(_) => {
@@ -416,7 +433,7 @@ mod tests {
                     .get_total_quantity_at_price(&price_to_bytes(130));
                 assert_eq!(quantity, 200); 
             },
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test"),
         }
     }
 
@@ -425,7 +442,7 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 700 };
-        let result = book.execute_order(Side::Bid, 150, order, OrderType::Limit);
+        let result = book.limit_bid_order(150, order);
         println!("{:#?}", result);
         match result {
             FillResult::PartiallyFilled(..) => {
@@ -433,7 +450,7 @@ mod tests {
                     .get_total_quantity_at_price(&price_to_bytes(150));
                 assert_eq!(quantity, 100);
             },
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test"),
         }
     }
 
@@ -442,11 +459,11 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 250 };
-        let result = book.execute_order(Side::Ask, 120, order, OrderType::Limit);
+        let result = book.limit_ask_order(120, order);
         println!("{:#?}", result);
         match result {
             FillResult::Created((order_id, ..)) => assert_eq!(order_id, id),
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test")
         }
     }
 
@@ -455,7 +472,7 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 400 };
-        let result = book.execute_order(Side::Ask, 100, order, OrderType::Limit);
+        let result = book.limit_ask_order(100, order);
         println!("{:#?}", result);
         match result {
             FillResult::Filled(_) => {
@@ -463,7 +480,7 @@ mod tests {
                     .get_total_quantity_at_price(&price_to_bytes(100));
                 assert_eq!(quantity, 200);
             },
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test"),
         }
     }
 
@@ -472,7 +489,7 @@ mod tests {
         let (.., mut book) = create_test_order_book();
         let id = Uuid::new_v4();
         let order = Order { id, quantity: 700 };
-        let result = book.execute_order(Side::Ask, 90, order, OrderType::Limit);
+        let result = book.limit_ask_order(90, order);
         println!("{:#?}", result);
         match result {
             FillResult::PartiallyFilled(..) => {
@@ -480,32 +497,112 @@ mod tests {
                     .get_total_quantity_at_price(&price_to_bytes(90));
                 assert_eq!(quantity, 100);
             },
-            _ => panic!("order could not be created"),
+            _ => panic!("invalid case for test"),
         }
     }
-    
+
     #[test]
     fn it_modifies_limit_bid_order_quantity() {
         let ((id, ..), _, mut book) = create_test_order_book();
-        book.modify_limit_order(Side::Bid, id, 100, 150, 100);
+        book.modify_limit_buy_order(id, 100, 150, 100);
         assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 350);
+    }
+
+    #[test]
+    fn it_modifies_limit_ask_order_quantity() {
+        let (_, (id, ..), mut book) = create_test_order_book();
+        book.modify_limit_ask_order(id, 120, 150, 120);
+        assert_eq!(book.ask_side_book.get_total_quantity_at_price(&price_to_bytes(120)), 350);
     }
 
     #[test]
     fn it_modifies_limit_bid_order_price() {
         let ((id, ..), _, mut book) = create_test_order_book();
-        book.modify_limit_order(Side::Bid, id, 100, 400, 120);
+        book.modify_limit_buy_order(id, 100, 400, 120);
         let quantity_at_100 = book.bid_side_book.get_total_quantity_at_price(
             &price_to_bytes(100));
         let quantity_at_120 = book.bid_side_book.get_total_quantity_at_price(
             &price_to_bytes(120));
         assert!(quantity_at_100 == 200 && quantity_at_120 == 100);
     }
-    
+
+    #[test]
+    fn it_modifies_limit_ask_order_price() {
+        let (_, (id, ..), mut book)  = create_test_order_book();
+        book.modify_limit_ask_order(id, 120, 400, 110);
+        let quantity_at_120 = book.ask_side_book.get_total_quantity_at_price(
+            &price_to_bytes(120));
+        let quantity_at_110 = book.ask_side_book.get_total_quantity_at_price(
+            &price_to_bytes(110));
+        assert!(quantity_at_120 == 200 && quantity_at_110 == 100);
+    }
+
     #[test]
     fn it_modifies_nothing_when_price_and_quantity_are_same() {
         let ((id, ..), _, mut book) = create_test_order_book();
-        book.modify_limit_order(Side::Bid, id, 100, 100, 100);
+        book.modify_limit_buy_order(id, 100, 100, 100);
         assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price_to_bytes(100)), 300);
+    }
+
+    #[test]
+    fn it_executes_a_market_bid_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: Uuid::new_v4(), quantity: 500 };
+        let result = book.market_bid_order(order);
+        println!("{:#?}", result);
+        match result {
+            FillResult::Filled(..) => {
+                let price = price_to_bytes(130);
+                assert_eq!(book.ask_side_book.get_total_quantity_at_price(&price), 100);
+            }
+            _ => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_executes_a_market_ask_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: Uuid::new_v4(), quantity: 500 };
+        let result = book.market_ask_order(order);
+        println!("{:#?}", result);
+        match result {
+            FillResult::Filled(..) => {
+                let price = price_to_bytes(100);
+                assert_eq!(book.bid_side_book.get_total_quantity_at_price(&price), 100);
+            }
+            _ => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_executes_a_market_bid_partially_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: Uuid::new_v4(), quantity: 700 };
+        let result = book.market_bid_order(order);
+        println!("{:#?}", result);
+        match result {
+            FillResult::PartiallyFilled(..) => {
+                let price = price_to_bytes(130);
+                assert!(book.bid_side_book.get_total_quantity_at_price(&price) == 100
+                    && book.ask_side_book.get_total_quantity_at_price(&price) == 0);
+            }
+            _ => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_executes_a_market_ask_partially_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: Uuid::new_v4(), quantity: 700 };
+        let result = book.market_ask_order(order);
+        println!("{:#?}", result);
+        match result {
+            FillResult::PartiallyFilled(..) => {
+                let price = price_to_bytes(100);
+                assert!(book.ask_side_book.get_total_quantity_at_price(&price) == 100
+                    && book.bid_side_book.get_total_quantity_at_price(&price) == 0);
+            }
+            _ => panic!("invalid case for test"),
+        }
     }
 }
