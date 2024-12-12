@@ -1,5 +1,4 @@
-pub mod orderbook;
-mod utils;
 mod pricebook;
+pub mod orderbook;
 pub mod models;
 pub mod orderrequest;
