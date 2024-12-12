@@ -13,7 +13,8 @@ pub struct OrderRequest {
 }
 
 impl OrderRequest {
-    pub fn new(id: u128, price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
+    pub fn new(
+        id: u128, price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
         OrderRequest {
             id,
             price,

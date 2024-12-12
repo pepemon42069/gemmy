@@ -22,6 +22,7 @@ pub enum OrderOperation {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum FillResult {
+    InvalidOrder,
     Filled(Vec<(u128, u64, u64)>),
     PartiallyFilled(Vec<(u128, u64, u64)>, (u128, u64, u64)),
     Created((u128, u64, u64))

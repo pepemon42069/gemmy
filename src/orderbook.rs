@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
-use crate::models::{ExecutionResult, FillResult, ModifyResult, Order, OrderOperation, OrderType, Side};
+use crate::models::{
+    ExecutionResult, FillResult, ModifyResult, Order, OrderOperation, OrderType, Side
+};
 use crate::pricebook::PriceBook;
 
 #[derive(Debug)]
 pub struct OrderBook {
     pub id: u128,
-    pub max_bid: u64,
-    pub min_ask: u64,
     bid_side_book: PriceBook,
     ask_side_book: PriceBook
 }
@@ -21,10 +21,8 @@ impl OrderBook {
     pub fn new(id: u128) -> Self {
         OrderBook {
             id,
-            max_bid: u64::MAX,
-            min_ask: u64::MIN,
-            bid_side_book: PriceBook::new(),
-            ask_side_book: PriceBook::new(),
+            bid_side_book: PriceBook::new(Side::Bid),
+            ask_side_book: PriceBook::new(Side::Ask),
         }
     }
     
@@ -102,12 +100,12 @@ impl OrderBook {
     
     fn cancel_bid_order(&mut self, id: u128, price: u64) {
         self.bid_side_book.remove(&id, &price);
-        self.update_max_bid();
+        Self::update_max_bid(&mut self.bid_side_book);
     }
 
     fn cancel_ask_order(&mut self, id: u128, price: u64) {
         self.ask_side_book.remove(&id, &price);
-        self.update_min_ask();
+        Self::update_min_ask(&mut self.ask_side_book);
     }
 
     fn modify_limit_buy_order(
@@ -119,7 +117,7 @@ impl OrderBook {
                 Some(self.limit_bid_order(new_price, Order {id, quantity: new_quantity }))
             }
             ModifyResult::ModifiedOrder => {
-                self.update_max_bid();
+                Self::update_max_bid(&mut self.bid_side_book);
                 None
             }
             _ => None
@@ -135,24 +133,24 @@ impl OrderBook {
                 Some(self.limit_ask_order(new_price, Order {id, quantity: new_quantity }))
             }
             ModifyResult::ModifiedOrder => {
-                self.update_min_ask();
+                Self::update_min_ask(&mut self.ask_side_book);
                 None
             }
             _ => None
         }
     }
 
-    fn update_max_bid(&mut self) {
-        if let Some((price, _)) = self.bid_side_book.price_map.iter()
+    fn update_max_bid(bid_side_book: &mut PriceBook) {
+        if let Some((price, _)) = bid_side_book.price_map.iter()
             .filter(|(_, order_queue)| !order_queue.is_empty()).last(){
-            self.max_bid = *price;
+            bid_side_book.top_price = Some(*price);
         }
     }
 
-    fn update_min_ask(&mut self) {
-        if let Some((price, _)) = self.ask_side_book.price_map.iter().rev()
+    fn update_min_ask(ask_side_book: &mut PriceBook) {
+        if let Some((price, _)) = ask_side_book.price_map.iter().rev()
             .filter(|(_, order_queue)| !order_queue.is_empty()).last() {
-            self.min_ask = *price;
+            ask_side_book.top_price = Some(*price);
         }
     }
 
@@ -167,11 +165,7 @@ impl OrderBook {
             if price < *ask { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
-        let fill_result = Self::process_fills(
-            remaining_quantity, fills, price, order, &mut self.bid_side_book);
-        // TODO: 1 bottleneck found
-        // self.update_max_bid();
-        fill_result
+         Self::process_fills(remaining_quantity, fills, price, order, &mut self.bid_side_book)
     }
 
     fn limit_ask_order(&mut self, price: u64, order: Order) -> FillResult {
@@ -185,10 +179,7 @@ impl OrderBook {
             if price > *bid { break; }
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
-        let fill_result = Self::process_fills(
-            remaining_quantity, fills, price, order, &mut self.ask_side_book);
-        self.update_min_ask();
-        fill_result
+        Self::process_fills(remaining_quantity, fills, price, order, &mut self.ask_side_book)
     }
 
     fn market_bid_order(&mut self, order: Order) -> FillResult {
@@ -203,11 +194,13 @@ impl OrderBook {
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *ask, order_queue);
         }
         let market_price = fills.iter()
-            .map(|(_, fill_price, _)| *fill_price).max().unwrap_or(self.max_bid);
-        let fill_result = Self::process_fills(
-            remaining_quantity, fills, market_price, order, &mut self.bid_side_book);
-        self.update_max_bid();
-        fill_result
+            .map(|(_, fill_price, _)| Some(*fill_price))
+            .max().unwrap_or(self.bid_side_book.top_price);
+        if market_price.is_none() {
+            return FillResult::InvalidOrder;
+        }
+        Self::process_fills(
+            remaining_quantity, fills, market_price.unwrap(), order, &mut self.bid_side_book)
     }
 
     fn market_ask_order(&mut self, order: Order) -> FillResult {
@@ -222,17 +215,19 @@ impl OrderBook {
             Self::process_order_queue(&mut fills, &mut remaining_quantity, *bid, order_queue);
         }
         let market_price = fills.iter()
-            .map(|(_, fill_price, _)| *fill_price).min().unwrap_or(self.min_ask);
-        let fill_result = Self::process_fills(
-            remaining_quantity, fills, market_price, order, &mut self.ask_side_book);
-        self.update_min_ask();
-        fill_result
+            .map(|(_, fill_price, _)| Some(*fill_price))
+            .min().unwrap_or(self.ask_side_book.top_price);
+        if market_price.is_none() {
+            return FillResult::InvalidOrder;
+        }
+        Self::process_fills(remaining_quantity, fills, market_price.unwrap(), order, &mut self.ask_side_book)
     }
 
     fn process_order_queue(fills: &mut Vec<(u128, u64, u64)>, remaining_quantity: &mut u64, 
                            book_price: u64, order_queue: &mut VecDeque<Order>) {
         while !order_queue.is_empty() && *remaining_quantity != 0 {
             let book_order = order_queue.front_mut().unwrap();
+            
             if book_order.quantity <= *remaining_quantity {
                 fills.push((book_order.id, book_price, book_order.quantity));
                 *remaining_quantity -= book_order.quantity;
@@ -245,19 +240,20 @@ impl OrderBook {
         }
     }
     
-    fn process_fills(remaining_quantity: u64, fills: Vec<(u128, u64, u64)>, price: u64, 
-                     order: Order, book: &mut PriceBook ) -> FillResult {
-        let fill_result;
+    fn process_fills(remaining_quantity: u64, fills: Vec<(u128, u64, u64)>, price: u64,
+                     order: Order, book: &mut PriceBook) -> FillResult {
         if remaining_quantity == order.quantity {
-            fill_result = FillResult::Created((order.id, price, remaining_quantity));
+            let id = order.id;
             book.insert(price, order);
+            book.check_and_update_top_price(price);
+            FillResult::Created((id, price, remaining_quantity))
         } else if remaining_quantity > 0 {
-            fill_result = FillResult::PartiallyFilled(fills, (order.id, price, remaining_quantity));
             book.insert(price, Order { id: order.id, quantity: remaining_quantity });
+            book.check_and_update_top_price(price);
+            FillResult::PartiallyFilled(fills, (order.id, price, remaining_quantity))
         } else {
-            fill_result = FillResult::Filled(fills);
+            FillResult::Filled(fills)
         }
-        fill_result
     }
 
     fn process_order_modification(book: &mut PriceBook, id: u128, price: u64,
@@ -287,8 +283,10 @@ pub(crate) mod tests {
 
     pub fn create_test_order_book() -> ((u128, u128, u128), (u128, u128, u128), OrderBook) {
         let mut book = OrderBook::default();
-        let (ids_bid, bid_side_book) = create_test_price_book(100, 110);
-        let (ids_ask, ask_side_book) = create_test_price_book(120, 130);
+        let (ids_bid, bid_side_book) = 
+            create_test_price_book(100, 110, Side::Bid);
+        let (ids_ask, ask_side_book) = 
+            create_test_price_book(120, 130, Side::Ask);
         book.bid_side_book = bid_side_book;
         book.ask_side_book = ask_side_book;
         (ids_bid, ids_ask, book)
@@ -502,16 +500,90 @@ pub(crate) mod tests {
             _ => panic!("invalid case for test"),
         }
     }
-    
+
+    #[test]
+    fn it_updates_top_price_when_bid_is_created() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: 5, quantity: 500 };
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        book.limit_bid_order(115, order);
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        match book.bid_side_book.top_price {
+            Some(price) => assert_eq!(price, 115),
+            None => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_updates_top_price_when_ask_is_created() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: 5, quantity: 500 };
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        book.limit_ask_order(115, order);
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        match book.ask_side_book.top_price {
+            Some(price) => assert_eq!(price, 115),
+            None => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_updates_top_price_when_bid_is_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: 5, quantity: 500 };
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        book.limit_bid_order(130, order);
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        match book.ask_side_book.top_price {
+            Some(price) => assert_eq!(price, 130),
+            None => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_updates_top_price_when_ask_is_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: 5, quantity: 500 };
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        book.limit_ask_order(100, order);
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        match book.bid_side_book.top_price {
+            Some(price) => assert_eq!(price, 100),
+            None => panic!("invalid case for test"),
+        }
+    }
+
+    #[test]
+    fn it_updates_top_price_when_bid_is_partially_filled() {
+        let (.., mut book) = create_test_order_book();
+        let order = Order { id: 5, quantity: 700 };
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        book.limit_bid_order(130, order);
+        println!("{:?}", book.stats());
+        println!("{:?} {:?}", book.bid_side_book.top_price, book.ask_side_book.top_price);
+        assert!(book.ask_side_book.top_price == Some(130) 
+            && book.bid_side_book.top_price == Some(130))
+    }
     
     //TODO: complete tests for larger executions
     #[test]
     fn it_executes_a_series_of_orders() {
         let (_, _, mut book) = create_test_order_book();
-        let order_request = OrderRequest::new(5,110, 100, Side::Bid, OrderType::Limit);
+        let order_request = OrderRequest::new(
+            5,110, 100, Side::Bid, OrderType::Limit);
         let operations = vec![
             OrderOperation::Place(order_request.clone()),
-            OrderOperation::Place(OrderRequest::new(6, 110, 200, Side::Ask, OrderType::Market)),
+            OrderOperation::Place(OrderRequest::new(
+                6, 110, 200, Side::Ask, OrderType::Market)),
             OrderOperation::Modify(order_request.clone(), 110, 200),
             OrderOperation::Cancel(order_request.clone())
         ];
