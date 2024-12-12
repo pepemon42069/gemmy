@@ -43,7 +43,7 @@ pub(crate) enum ModifyResult {
 }
 
 #[derive(Debug)]
-pub struct Order {
+pub(crate) struct Order {
     pub id: u128,
     pub quantity: u64
 }

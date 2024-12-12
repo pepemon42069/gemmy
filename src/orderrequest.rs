@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use crate::models::{Order, OrderType, Side};
-use crate::utils::get_timestamp_now_micros;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
@@ -8,8 +7,7 @@ pub struct OrderRequest {
     pub price: u64,
     pub quantity: u64,
     pub side: Side,
-    pub order_type: OrderType,
-    pub timestamp: u128
+    pub order_type: OrderType
 }
 
 impl OrderRequest {
@@ -20,8 +18,7 @@ impl OrderRequest {
             price,
             quantity,
             side,
-            order_type,
-            timestamp: get_timestamp_now_micros()
+            order_type
         }
     }
 

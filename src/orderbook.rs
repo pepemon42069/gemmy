@@ -100,12 +100,12 @@ impl OrderBook {
     
     fn cancel_bid_order(&mut self, id: u128, price: u64) {
         self.bid_side_book.remove(&id, &price);
-        Self::update_max_bid(&mut self.bid_side_book);
+        self.update_max_bid();
     }
 
     fn cancel_ask_order(&mut self, id: u128, price: u64) {
         self.ask_side_book.remove(&id, &price);
-        Self::update_min_ask(&mut self.ask_side_book);
+        self.update_min_ask();
     }
 
     fn modify_limit_buy_order(
@@ -117,7 +117,7 @@ impl OrderBook {
                 Some(self.limit_bid_order(new_price, Order {id, quantity: new_quantity }))
             }
             ModifyResult::ModifiedOrder => {
-                Self::update_max_bid(&mut self.bid_side_book);
+                self.update_max_bid();
                 None
             }
             _ => None
@@ -133,28 +133,28 @@ impl OrderBook {
                 Some(self.limit_ask_order(new_price, Order {id, quantity: new_quantity }))
             }
             ModifyResult::ModifiedOrder => {
-                Self::update_min_ask(&mut self.ask_side_book);
+                self.update_min_ask();
                 None
             }
             _ => None
         }
     }
 
-    fn update_max_bid(bid_side_book: &mut PriceBook) {
-        if let Some((price, _)) = bid_side_book.price_map.iter()
+    fn update_max_bid(&mut self) {
+        if let Some((price, _)) = self.bid_side_book.price_map.iter()
             .filter(|(_, order_queue)| !order_queue.is_empty()).last(){
-            bid_side_book.top_price = Some(*price);
+            self.bid_side_book.top_price = Some(*price);
         }
     }
 
-    fn update_min_ask(ask_side_book: &mut PriceBook) {
-        if let Some((price, _)) = ask_side_book.price_map.iter().rev()
+    fn update_min_ask(&mut self) {
+        if let Some((price, _)) = self.ask_side_book.price_map.iter().rev()
             .filter(|(_, order_queue)| !order_queue.is_empty()).last() {
-            ask_side_book.top_price = Some(*price);
+            self.ask_side_book.top_price = Some(*price);
         }
     }
 
-    pub fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
+    fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut update_min_ask = false;
