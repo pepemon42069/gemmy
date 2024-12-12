@@ -189,8 +189,8 @@ impl OrderBook {
             }
             if front_order.quantity > *remaining_quantity {
                 front_order.quantity -= *remaining_quantity;
-                *remaining_quantity = 0;
                 order_fills.push((front_order.id, *ask_price, *remaining_quantity));
+                *remaining_quantity = 0;
             } else {
                 *remaining_quantity -= front_order.quantity;
                 order_fills.push((front_order.id, *ask_price, front_order.quantity));
