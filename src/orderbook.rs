@@ -154,7 +154,7 @@ impl OrderBook {
         }
     }
 
-    fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
+    pub fn limit_bid_order(&mut self, price: u64, order: Order) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut update_min_ask = false;

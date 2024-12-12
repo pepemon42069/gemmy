@@ -18,5 +18,5 @@ lto = "thin"
 codegen-units = 1
 
 [[bench]]
-name = "bench_main"
+name = "simple"
 harness = false
