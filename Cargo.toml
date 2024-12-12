@@ -4,10 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-qp-trie = { version = "0.8.2" }
-uuid = { version = "1.11.0", features = ["v4", "serde"] }
 serde = { version = "1.0.216", features = ["derive"] }
-rand = "0.8.5"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [profile.bench]

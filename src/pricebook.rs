@@ -1,17 +1,16 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::models::{Order, Side};
+use crate::models::Order;
 
 #[derive(Debug)]
 pub(crate) struct PriceBook {
-    pub side: Side,
     pub top_price: Option<u64>,
     pub price_map: BTreeMap<u64, VecDeque<Order>>
 }
 
 impl PriceBook {
-    pub fn new(side: Side) -> Self {
-        PriceBook {side, top_price: None, price_map: BTreeMap::new() }
+    pub fn new() -> Self {
+        PriceBook {top_price: None, price_map: BTreeMap::new() }
     }
 
     pub fn insert(&mut self, price: u64, order: Order) {
@@ -35,26 +34,6 @@ impl PriceBook {
             None => 0
         }
     }
-    
-    pub fn check_and_update_top_price(&mut self, price: u64) {
-        match self.top_price {
-            None => self.top_price = Some(price),
-            Some(top_price) => {
-                match self.side {
-                    Side::Bid => {
-                        if price > top_price {
-                            self.top_price = Some(price);
-                        }
-                    }
-                    Side::Ask => {
-                        if price < top_price {
-                            self.top_price = Some(price);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -64,7 +43,7 @@ pub(crate) mod tests {
     use crate::pricebook::PriceBook;
 
     pub fn create_test_price_book(p0: u64, p1: u64, side: Side) -> ((u128, u128, u128), PriceBook) {
-        let mut book = PriceBook::new(side.clone());
+        let mut book = PriceBook::new();
         match side {
             Side::Bid => book.top_price = Some(p1),
             Side::Ask => book.top_price = Some(p0)
@@ -111,7 +90,7 @@ pub(crate) mod tests {
 
     #[test]
     fn it_removes_order_from_price_book_when_it_exists() {
-        let ((o100i1, ..), mut book) = 
+        let ((o100i1, ..), mut book) =
             create_test_price_book(100, 110, Side::Bid);
         let price = 100;
         book.remove(&o100i1, &price);
@@ -129,7 +108,7 @@ pub(crate) mod tests {
 
     #[test]
     fn it_does_nothing_in_price_book_when_price_does_not_exist() {
-        let ((o100i1, ..), mut book) = 
+        let ((o100i1, ..), mut book) =
             create_test_price_book(100, 110, Side::Bid);
         let price = 500;
         book.remove(&o100i1, &price);
