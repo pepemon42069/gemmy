@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use crate::models::{Order, OrderType, Side};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
     pub id: u128,
     pub price: u64,

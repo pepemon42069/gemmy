@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 use crate::orderrequest::OrderRequest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Side {
     Bid,
     Ask
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum OrderType {
     Limit,
     Market
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum OrderOperation {
     Place(OrderRequest),
     Modify(OrderRequest, u64, u64),

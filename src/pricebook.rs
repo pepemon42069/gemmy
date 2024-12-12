@@ -4,13 +4,12 @@ use crate::models::Order;
 
 #[derive(Debug)]
 pub(crate) struct PriceBook {
-    pub top_price: Option<u64>,
     pub price_map: BTreeMap<u64, VecDeque<Order>>
 }
 
 impl PriceBook {
     pub fn new() -> Self {
-        PriceBook {top_price: None, price_map: BTreeMap::new() }
+        PriceBook { price_map: BTreeMap::new() }
     }
 
     pub fn insert(&mut self, price: u64, order: Order) {
@@ -39,15 +38,11 @@ impl PriceBook {
 #[cfg(test)]
 pub(crate) mod tests {
     use std::collections::VecDeque;
-    use crate::models::{Order, Side};
+    use crate::models::Order;
     use crate::pricebook::PriceBook;
 
-    pub fn create_test_price_book(p0: u64, p1: u64, side: Side) -> ((u128, u128, u128), PriceBook) {
+    pub fn create_test_price_book(p0: u64, p1: u64) -> ((u128, u128, u128), PriceBook) {
         let mut book = PriceBook::new();
-        match side {
-            Side::Bid => book.top_price = Some(p1),
-            Side::Ask => book.top_price = Some(p0)
-        }
         let id1 = 1;
         let id2 = 2;
         let id3 = 3;
@@ -65,14 +60,14 @@ pub(crate) mod tests {
 
     #[test]
     fn it_gets_total_quantity_at_price() {
-        let (_, book) = create_test_price_book(100, 110, Side::Bid);
+        let (_, book) = create_test_price_book(100, 110);
         let result = book.get_total_quantity_at_price(&100);
         assert_eq!(300, result);
     }
 
     #[test]
     fn it_inserts_order_at_price_when_queue_does_not_exist() {
-        let (_, mut book) = create_test_price_book(100, 110, Side::Bid);
+        let (_, mut book) = create_test_price_book(100, 110);
         let order = Order { id: 1, quantity: 500 };
         let price = 200;
         book.insert(price, order);
@@ -81,7 +76,7 @@ pub(crate) mod tests {
 
     #[test]
     fn it_inserts_order_at_price_when_queue_exists() {
-        let (_, mut book) = create_test_price_book(100, 110, Side::Bid);
+        let (_, mut book) = create_test_price_book(100, 110);
         let price = 100;
         let order = Order { id: 1, quantity: 200 };
         book.insert(price, order);
@@ -91,7 +86,7 @@ pub(crate) mod tests {
     #[test]
     fn it_removes_order_from_price_book_when_it_exists() {
         let ((o100i1, ..), mut book) =
-            create_test_price_book(100, 110, Side::Bid);
+            create_test_price_book(100, 110);
         let price = 100;
         book.remove(&o100i1, &price);
         assert_eq!(book.get_total_quantity_at_price(&price), 200u64);
@@ -99,7 +94,7 @@ pub(crate) mod tests {
 
     #[test]
     fn it_does_nothing_in_price_book_when_order_does_not_exist() {
-        let (_, mut book) = create_test_price_book(100, 110, Side::Bid);
+        let (_, mut book) = create_test_price_book(100, 110);
         let new_order_id = 5;
         let price = 100;
         book.remove(&new_order_id, &price);
@@ -109,7 +104,7 @@ pub(crate) mod tests {
     #[test]
     fn it_does_nothing_in_price_book_when_price_does_not_exist() {
         let ((o100i1, ..), mut book) =
-            create_test_price_book(100, 110, Side::Bid);
+            create_test_price_book(100, 110);
         let price = 500;
         book.remove(&o100i1, &price);
         assert_eq!(book.get_total_quantity_at_price(&price), 0u64);
