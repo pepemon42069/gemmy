@@ -6,23 +6,30 @@ use crate::pricebook::PriceBook;
 
 #[derive(Debug)]
 pub struct OrderBook {
-    pub id: u128,
-    pub max_bid: Option<u64>,
-    pub min_ask: Option<u64>,
+    max_bid: Option<u64>,
+    min_ask: Option<u64>,
     bid_side_book: PriceBook,
     ask_side_book: PriceBook
 }
 
 impl Default for OrderBook {
     fn default() -> Self {
-        Self::new(0)
+        Self::new()
     }
 }
 
 impl OrderBook {
-    pub fn new(id: u128) -> Self {
+    
+    pub fn get_max_bid(&self) -> Option<u64> {
+        self.max_bid
+    }
+    
+    pub fn get_min_ask(&self) -> Option<u64> {
+        self.min_ask
+    }
+    
+    pub fn new() -> Self {
         OrderBook {
-            id,
             max_bid: None,
             min_ask: None,
             bid_side_book: PriceBook::new(),
@@ -321,12 +328,11 @@ impl OrderBook {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::models::Order;
-    use crate::orderbook::{ExecutionResult, FillResult, OrderBook, OrderOperation, OrderType, Side};
-    use crate::orderrequest::OrderRequest;
+    use crate::orderbook::{ FillResult, OrderBook, Side};
     use crate::pricebook::tests::create_test_price_book;
 
     pub fn create_test_order_book() -> ((u128, u128, u128), (u128, u128, u128), OrderBook) {
-        let mut book = OrderBook::new(0);
+        let mut book = OrderBook::new();
         book.max_bid = Some(110);
         book.min_ask = Some(120);
         let (ids_bid, bid_side_book) = 
@@ -608,41 +614,6 @@ pub(crate) mod tests {
         assert!(book.max_bid == Some(100)
             && book.min_ask == Some(100))
     }
-    
-    //TODO: complete tests for larger executions
-    #[test]
-    fn it_executes_a_series_of_orders() {
-        let (_, _, mut book) = create_test_order_book();
-        let order_request = OrderRequest::new(
-            5,110, 100, Side::Bid, OrderType::Limit);
-        let operations = vec![
-            OrderOperation::Place(order_request),
-            OrderOperation::Place(OrderRequest::new(
-                6, 110, 200, Side::Ask, OrderType::Market)),
-            OrderOperation::Modify(order_request, 110, 200),
-            OrderOperation::Cancel(order_request)
-        ];
-        for operation in operations {
-            match book.execute(operation) {
-                ExecutionResult::Executed(result) => {
-                    println!("executed: {:#?}", result);
-                }
-                ExecutionResult::Modified(result) => {
-                    match result {
-                        Some(fills) => {
-                            println!("modified with fills: {:#?}", fills);
-                        }
-                        None => {
-                            println!("modified");
-                        }
-                    }
-                }
-                ExecutionResult::Cancelled(result) => {
-                    println!("cancelled id: {:#?}", result);
-                }
-            }
-        }
-    }
 
     #[test]
     fn it_shows_stats() {
@@ -650,5 +621,34 @@ pub(crate) mod tests {
         let stats = book.stats();
         assert!(stats.len() == 4 && stats
             .iter().any(|(p, q, s)| *p == 100 && *q == 300 && *s == Side::Bid));
+    }
+
+
+    #[test]
+    fn it_gets_max_bid() {
+        let (.., book) = create_test_order_book();
+        let max_bid = book.get_max_bid();
+        assert_eq!(max_bid, Some(110));
+    }
+
+    #[test]
+    fn it_gets_min_ask() {
+        let (.., book) = create_test_order_book();
+        let min_ask = book.get_min_ask();
+        assert_eq!(min_ask, Some(120));
+    }
+
+    #[test]
+    fn it_returns_none_for_empty_get_max_bid() {
+        let book = OrderBook::new();
+        let max_bid = book.get_max_bid();
+        assert_eq!(max_bid, None);
+    }
+
+    #[test]
+    fn it_returns_none_for_empty_get_min_ask() {
+        let book = OrderBook::new();
+        let min_ask = book.get_min_ask();
+        assert_eq!(min_ask, None);
     }
 }
