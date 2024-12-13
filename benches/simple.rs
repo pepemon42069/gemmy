@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use gemmy::models::{OrderOperation, OrderRequest, OrderType, Side};
+use gemmy::models::{LimitOrder, Operation, Side};
 use gemmy::orderbook::OrderBook;
 
 fn small_limit_ladder(c: &mut Criterion) {
@@ -7,12 +7,11 @@ fn small_limit_ladder(c: &mut Criterion) {
         let mut orderbook = OrderBook::default();
         b.iter(|| {
             for i in 0..5_000 {
-                orderbook.execute(OrderOperation::Place(OrderRequest::new(
+                orderbook.execute(Operation::Limit(LimitOrder::new(
                     i as u128,
-                    Some(12345 + i),
+                    12345 + i,
                     i,
                     Side::Bid,
-                    OrderType::Limit,
                 )));
             }
         })
@@ -24,12 +23,11 @@ fn big_limit_ladder(c: &mut Criterion) {
         let mut orderbook = OrderBook::default();
         b.iter(|| {
             for i in 0..100_000 {
-                orderbook.execute(OrderOperation::Place(OrderRequest::new(
+                orderbook.execute(Operation::Limit(LimitOrder::new(
                     i as u128,
-                    Some(12345 + i),
+                    12345 + i,
                     i,
                     Side::Bid,
-                    OrderType::Limit,
                 )));
             }
         })
@@ -40,14 +38,11 @@ fn insert_and_remove_small_limit_ladder(c: &mut Criterion) {
         let mut book = OrderBook::default();
         b.iter(|| {
             for i in 1..5000u64 {
-                let order =
-                    OrderRequest::new(i as u128, Some(12345 + i), i, Side::Bid, OrderType::Limit);
-                book.execute(OrderOperation::Place(order));
+                let order = LimitOrder::new(i as u128, 12345 + i, i, Side::Bid);
+                book.execute(Operation::Limit(order));
             }
-            for i in 1..5000u64 {
-                let order =
-                    OrderRequest::new(i as u128, Some(12345 + i), i, Side::Bid, OrderType::Limit);
-                book.execute(OrderOperation::Cancel(order));
+            for i in 1..5000u128 {
+                book.execute(Operation::Cancel(i));
             }
         })
     });
