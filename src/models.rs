@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Side {
@@ -69,6 +70,11 @@ impl OrderRequest {
         }
     }
 
+    pub fn new_uuid_v4(
+        price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
+        Self::new(Uuid::new_v4().as_u128(), price, quantity, side, order_type)
+    }
+    
     pub(crate) fn to_order(self) -> Order {
         Order {
             id: self.id,
