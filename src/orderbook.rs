@@ -15,7 +15,7 @@ pub struct OrderBook {
     bid_side_book: BTreeMap<u64, VecDeque<usize>>,
     ask_side_book: BTreeMap<u64, VecDeque<usize>>,
     queue_capacity: usize,
-    order_store: Store,
+    pub order_store: Store,
 }
 
 impl Default for OrderBook {
