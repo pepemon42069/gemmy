@@ -56,7 +56,8 @@ impl OrderBook {
                 match order.order_type {
                     OrderType::Limit => {
                         if order.price.is_none() {
-                            return ExecutionResult::NoExecution("no price provided on limit order");
+                            return ExecutionResult::NoExecution(
+                                "no price provided on limit order".to_string());
                         }
                         match order.side {
                             Side::Bid => ExecutionResult::Executed(
@@ -67,14 +68,15 @@ impl OrderBook {
                     }
                     OrderType::Market => {
                         if order.price.is_some() {
-                            return ExecutionResult::NoExecution("provided price on market order");
+                            return ExecutionResult::NoExecution(
+                                "provided price on market order".to_string());
                         }
                         match order.side {
                             Side::Bid => {
                                 let result = self.market_bid_order(book_order);
                                 match result {
                                     FillResult::InvalidOrder => ExecutionResult::NoExecution(
-                                        "placed market order on empty book"),
+                                        "placed market order on empty book".to_string()),
                                     _ => ExecutionResult::Executed(result)
                                 }
                             },
@@ -82,7 +84,7 @@ impl OrderBook {
                                 let result = self.market_ask_order(book_order);
                                 match result {
                                     FillResult::InvalidOrder => ExecutionResult::NoExecution(
-                                        "placed market order on empty book"),
+                                        "placed market order on empty book".to_string()),
                                     _ => ExecutionResult::Executed(result)
                                 }
                             }
@@ -92,7 +94,8 @@ impl OrderBook {
             }
             OrderOperation::Modify(order, new_price, new_quantity) => {
                 if order.order_type == OrderType::Market {
-                    return ExecutionResult::NoExecution("provided a market order to modify");
+                    return ExecutionResult::NoExecution(
+                        "provided a market order to modify".to_string());
                 }
                 match order.side {
                     Side::Bid => {
@@ -100,7 +103,8 @@ impl OrderBook {
                             Some(price) => ExecutionResult::Modified(
                                 self.modify_limit_buy_order(
                                     order.id, price, new_price, new_quantity)),
-                            None => ExecutionResult::NoExecution("no modification occurred")
+                            None => ExecutionResult::NoExecution(
+                                "no modification occurred".to_string())
                         }
                     }
                     Side::Ask => {
@@ -108,14 +112,16 @@ impl OrderBook {
                             Some(price) => ExecutionResult::Modified(
                                 self.modify_limit_ask_order(
                                     order.id, price, new_price, new_quantity)),
-                            None => ExecutionResult::NoExecution("no modification occurred")
+                            None => ExecutionResult::NoExecution(
+                                "no modification occurred".to_string())
                         }
                     }
                 }
             }
             OrderOperation::Cancel(order) => {
                 if order.order_type == OrderType::Market {
-                    return ExecutionResult::NoExecution("provided a market order to cancel");
+                    return ExecutionResult::NoExecution(
+                        "provided a market order to cancel".to_string());
                 }
                 match order.price {
                     Some(price) => {
@@ -124,7 +130,8 @@ impl OrderBook {
                             Side::Ask => self.cancel_ask_order(order.id, price)
                         }
                     },
-                    None => ExecutionResult::NoExecution("no price provided to cancel order")
+                    None => ExecutionResult::NoExecution(
+                        "no price provided to cancel order".to_string())
                 }
             }
         }
@@ -149,7 +156,7 @@ impl OrderBook {
                 self.update_max_bid();
                 ExecutionResult::Cancelled(id)
             }
-            false => ExecutionResult::NoExecution("no order found to cancel")
+            false => ExecutionResult::NoExecution("no order found to cancel".to_string())
         }
     }
 
@@ -159,7 +166,7 @@ impl OrderBook {
                 self.update_min_ask();
                 ExecutionResult::Cancelled(id)
             }
-            false => ExecutionResult::NoExecution("no order found to cancel")
+            false => ExecutionResult::NoExecution("no order found to cancel".to_string())
         }
     }
 

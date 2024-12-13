@@ -29,11 +29,11 @@ pub enum FillResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ExecutionResult<'a> {
+pub enum ExecutionResult {
     Executed(FillResult),
     Modified(Option<FillResult>),
     Cancelled(u128),
-    NoExecution(&'a str)
+    NoExecution(String)
 }
 
 #[derive(Debug)]
