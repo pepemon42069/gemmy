@@ -1,2 +1,2 @@
-pub mod orderbook;
 pub mod models;
+pub mod orderbook;

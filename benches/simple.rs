@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use gemmy::models::{OrderRequest, OrderOperation};
+use gemmy::models::{OrderOperation, OrderRequest, OrderType, Side};
 use gemmy::orderbook::OrderBook;
 
 fn small_limit_ladder(c: &mut Criterion) {
@@ -11,8 +11,8 @@ fn small_limit_ladder(c: &mut Criterion) {
                     i as u128,
                     Some(12345 + i),
                     i,
-                    gemmy::models::Side::Bid,
-                    gemmy::models::OrderType::Limit
+                    Side::Bid,
+                    OrderType::Limit,
                 )));
             }
         })
@@ -28,14 +28,35 @@ fn big_limit_ladder(c: &mut Criterion) {
                     i as u128,
                     Some(12345 + i),
                     i,
-                    gemmy::models::Side::Bid,
-                    gemmy::models::OrderType::Limit
+                    Side::Bid,
+                    OrderType::Limit,
                 )));
             }
         })
     });
 }
+fn insert_and_remove_small_limit_ladder(c: &mut Criterion) {
+    c.bench_function("insert and remove small limit ladder", |b| {
+        let mut book = OrderBook::default();
+        b.iter(|| {
+            for i in 1..5000u64 {
+                let order =
+                    OrderRequest::new(i as u128, Some(12345 + i), i, Side::Bid, OrderType::Limit);
+                book.execute(OrderOperation::Place(order));
+            }
+            for i in 1..5000u64 {
+                let order =
+                    OrderRequest::new(i as u128, Some(12345 + i), i, Side::Bid, OrderType::Limit);
+                book.execute(OrderOperation::Cancel(order));
+            }
+        })
+    });
+}
 
-criterion_group!(benches, small_limit_ladder, big_limit_ladder);
+criterion_group!(
+    benches,
+    insert_and_remove_small_limit_ladder,
+    small_limit_ladder,
+    big_limit_ladder
+);
 criterion_main!(benches);
-
