@@ -7,7 +7,7 @@ pub enum Side {
     Ask
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OrderType {
     Limit,
     Market
@@ -29,11 +29,11 @@ pub enum FillResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ExecutionResult {
+pub enum ExecutionResult<'a> {
     Executed(FillResult),
     Modified(Option<FillResult>),
     Cancelled(u128),
-    NoExecution
+    NoExecution(&'a str)
 }
 
 #[derive(Debug)]
