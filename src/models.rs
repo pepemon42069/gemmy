@@ -52,7 +52,7 @@ pub(crate) struct Order {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
     pub id: u128,
-    pub price: u64,
+    pub price: Option<u64>,
     pub quantity: u64,
     pub side: Side,
     pub order_type: OrderType
@@ -60,7 +60,7 @@ pub struct OrderRequest {
 
 impl OrderRequest {
     pub fn new(
-        id: u128, price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
+        id: u128, price: Option<u64>, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
         OrderRequest {
             id,
             price,
@@ -71,7 +71,7 @@ impl OrderRequest {
     }
 
     pub fn new_uuid_v4(
-        price: u64, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
+        price: Option<u64>, quantity: u64, side: Side, order_type: OrderType) -> OrderRequest {
         Self::new(Uuid::new_v4().as_u128(), price, quantity, side, order_type)
     }
     

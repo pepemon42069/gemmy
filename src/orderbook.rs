@@ -50,8 +50,11 @@ impl OrderBook {
                     Side::Bid => {
                         match order.order_type {
                             OrderType::Limit => {
-                                ExecutionResult::Executed(
-                                    self.limit_bid_order(order.price, book_order))
+                                match order.price {
+                                    Some(price) => ExecutionResult::Executed(
+                                        self.limit_bid_order(price, book_order)),
+                                    None => ExecutionResult::NoExecution
+                                }
                             }
                             OrderType::Market => {
                                 ExecutionResult::Executed(self.market_bid_order(book_order))
@@ -61,8 +64,11 @@ impl OrderBook {
                     Side::Ask => {
                         match order.order_type {
                             OrderType::Limit => {
-                                ExecutionResult::Executed(
-                                    self.limit_ask_order(order.price, book_order))
+                                match order.price {
+                                    Some(price) => ExecutionResult::Executed(
+                                        self.limit_ask_order(price, book_order)),
+                                    None => ExecutionResult::NoExecution
+                                }
                             }
                             OrderType::Market => {
                                 ExecutionResult::Executed(self.market_ask_order(book_order))
@@ -74,20 +80,32 @@ impl OrderBook {
             OrderOperation::Modify(order, new_price, new_quantity) => {
                 match order.side {
                     Side::Bid => {
-                        ExecutionResult::Modified(self.modify_limit_buy_order(
-                            order.id, order.price, new_price, new_quantity))
-                        
+                        match order.price {
+                            Some(price) => ExecutionResult::Modified(
+                                self.modify_limit_buy_order(
+                                    order.id, price, new_price, new_quantity)),
+                            None => ExecutionResult::NoExecution
+                        }
                     }
                     Side::Ask => {
-                        ExecutionResult::Modified(self.modify_limit_ask_order(
-                            order.id, order.price, new_price, new_quantity))
+                        match order.price {
+                            Some(price) => ExecutionResult::Modified(
+                                self.modify_limit_ask_order(
+                                    order.id, price, new_price, new_quantity)),
+                            None => ExecutionResult::NoExecution
+                        }
                     }
                 }
             }
             OrderOperation::Cancel(order) => {
-                match order.side {
-                    Side::Bid => self.cancel_bid_order(order.id, order.price),
-                    Side::Ask => self.cancel_ask_order(order.id, order.price)
+                match order.price {
+                    Some(price) => {
+                        match order.side {
+                            Side::Bid => self.cancel_bid_order(order.id, price),
+                            Side::Ask => self.cancel_ask_order(order.id, price)
+                        }
+                    },
+                    None => ExecutionResult::NoExecution
                 }
             }
         }
@@ -365,16 +383,16 @@ pub(crate) mod tests {
     fn create_orderbook() -> OrderBook {
         let mut book = OrderBook::new();
         let orders = vec![
-            OrderRequest::new(1, 100, 100, Side::Bid, OrderType::Limit),
-            OrderRequest::new(2, 100, 150, Side::Bid, OrderType::Limit),
-            OrderRequest::new(3, 100, 50, Side::Bid, OrderType::Limit),
-            OrderRequest::new(4, 110, 200, Side::Bid, OrderType::Limit),
-            OrderRequest::new(5, 110, 100, Side::Bid, OrderType::Limit),
-            OrderRequest::new(6, 120, 100, Side::Ask, OrderType::Limit),
-            OrderRequest::new(7, 120, 150, Side::Ask, OrderType::Limit),
-            OrderRequest::new(8, 120, 50, Side::Ask, OrderType::Limit),
-            OrderRequest::new(9, 130, 200, Side::Ask, OrderType::Limit),
-            OrderRequest::new(10, 130, 100, Side::Ask, OrderType::Limit),
+            OrderRequest::new(1, Some(100), 100, Side::Bid, OrderType::Limit),
+            OrderRequest::new(2, Some(100), 150, Side::Bid, OrderType::Limit),
+            OrderRequest::new(3, Some(100), 50, Side::Bid, OrderType::Limit),
+            OrderRequest::new(4, Some(110), 200, Side::Bid, OrderType::Limit),
+            OrderRequest::new(5, Some(110), 100, Side::Bid, OrderType::Limit),
+            OrderRequest::new(6, Some(120), 100, Side::Ask, OrderType::Limit),
+            OrderRequest::new(7, Some(120), 150, Side::Ask, OrderType::Limit),
+            OrderRequest::new(8, Some(120), 50, Side::Ask, OrderType::Limit),
+            OrderRequest::new(9, Some(130), 200, Side::Ask, OrderType::Limit),
+            OrderRequest::new(10, Some(130), 100, Side::Ask, OrderType::Limit),
         ];
         for order in orders {
             book.execute(OrderOperation::Place(order));
@@ -435,7 +453,7 @@ pub(crate) mod tests {
     fn it_cancels_order_when_it_exists() {
         let mut book = create_orderbook();
         book.execute(OrderOperation::Place(
-            OrderRequest::new(11, 115, 100, Side::Bid, OrderType::Limit)));
+            OrderRequest::new(11, Some(115), 100, Side::Bid, OrderType::Limit)));
         match book.cancel_bid_order(11, 115) {
             ExecutionResult::Cancelled(id) => {
                 assert!(id == 11 && book.get_max_bid() == Some(110))

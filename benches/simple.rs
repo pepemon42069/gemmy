@@ -9,7 +9,7 @@ fn small_limit_ladder(c: &mut Criterion) {
             for i in 0..5_000 {
                 orderbook.execute(OrderOperation::Place(OrderRequest::new(
                     i as u128,
-                    12345 + i,
+                    Some(12345 + i),
                     i,
                     gemmy::models::Side::Bid,
                     gemmy::models::OrderType::Limit
@@ -26,7 +26,7 @@ fn big_limit_ladder(c: &mut Criterion) {
             for i in 0..100_000 {
                 orderbook.execute(OrderOperation::Place(OrderRequest::new(
                     i as u128,
-                    12345 + i,
+                    Some(12345 + i),
                     i,
                     gemmy::models::Side::Bid,
                     gemmy::models::OrderType::Limit

@@ -12,7 +12,7 @@ fn load_operations(path: &str) -> Vec<OrderOperation> {
         match record {
             Ok((_, side, price, quantity)) => {
                 operations.push(OrderOperation::Place(
-                    OrderRequest::new(id, price, quantity, side, OrderType::Limit)));
+                    OrderRequest::new(id, Some(price), quantity, side, OrderType::Limit)));
                 id += 1;
             }
             Err(e) => println!("Error parsing line: {}", e)
