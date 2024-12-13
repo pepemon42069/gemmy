@@ -1,8 +1,7 @@
 use std::fs::File;
 use criterion::{criterion_group, criterion_main, Criterion};
-use gemmy::models::{OrderOperation, OrderType, Side};
+use gemmy::models::{OrderOperation, OrderRequest, OrderType, Side};
 use gemmy::orderbook::OrderBook;
-use gemmy::orderrequest::OrderRequest;
 
 fn load_operations(path: &str) -> Vec<OrderOperation> {
     let file = File::open(path).unwrap();

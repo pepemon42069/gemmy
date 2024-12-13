@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use gemmy::models::OrderOperation;
+use gemmy::models::{OrderRequest, OrderOperation};
 use gemmy::orderbook::OrderBook;
-use gemmy::orderrequest::OrderRequest;
 
 fn small_limit_ladder(c: &mut Criterion) {
     c.bench_function("small limit ladder", |b| {
