@@ -44,7 +44,7 @@ impl OrderBook {
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
     }
-    
+
     pub fn get_queue_capacity(&self) -> usize {
         self.queue_capacity
     }
@@ -64,7 +64,11 @@ impl OrderBook {
                                 }
                             }
                             OrderType::Market => {
-                                ExecutionResult::Executed(self.market_bid_order(book_order))
+                                let result = self.market_bid_order(book_order);
+                                match result {
+                                    FillResult::InvalidOrder => ExecutionResult::NoExecution,
+                                    _ => ExecutionResult::Executed(result)
+                                }
                             }
                         }
                     }
@@ -78,7 +82,11 @@ impl OrderBook {
                                 }
                             }
                             OrderType::Market => {
-                                ExecutionResult::Executed(self.market_ask_order(book_order))
+                                let result = self.market_ask_order(book_order);
+                                match result {
+                                    FillResult::InvalidOrder => ExecutionResult::NoExecution,
+                                    _ => ExecutionResult::Executed(result)
+                                }
                             }
                         }
                     }
@@ -247,6 +255,11 @@ impl OrderBook {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut update_min_ask = false;
+
+        if self.min_ask.is_none() {
+            return FillResult::InvalidOrder;
+        }
+        
         for (ask_price, queue) in self.ask_side_book.iter_mut() {
             if update_min_ask {
                 self.min_ask = Some(*ask_price);
@@ -287,6 +300,11 @@ impl OrderBook {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut update_max_bid = false;
+        
+        if self.max_bid.is_none() {
+            return FillResult::InvalidOrder;
+        }
+        
         for (bid_price, queue) in self.bid_side_book.iter_mut().rev() {
             if update_max_bid {
                 self.max_bid = Some(*bid_price);
@@ -652,6 +670,28 @@ pub(crate) mod tests {
                 assert!(fills_to_ids(order_fills) == vec![4, 5, 1, 2, 3] 
                     && order_placed == (11, 100, 100));
             },
+            _ => panic!("test failed"),
+        }
+    }
+
+    #[test]
+    fn it_does_not_execute_market_bid_when_max_bid_is_none() {
+        let mut book = OrderBook::default();
+        let operation = OrderOperation::Place(
+            OrderRequest::new(1, None, 100, Side::Bid, OrderType::Market));
+        match book.execute(operation) {
+            ExecutionResult::NoExecution => (),
+            _ => panic!("test failed"),
+        }
+    }
+    
+    #[test]
+    fn it_does_not_execute_market_ask_when_max_bid_is_none() {
+        let mut book = OrderBook::default();
+        let operation = OrderOperation::Place(
+            OrderRequest::new(1, None, 100, Side::Ask, OrderType::Market));
+        match book.execute(operation) {
+            ExecutionResult::NoExecution => (),
             _ => panic!("test failed"),
         }
     }
