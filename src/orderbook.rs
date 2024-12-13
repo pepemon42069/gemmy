@@ -10,23 +10,26 @@ pub struct OrderBook {
     max_bid: Option<u64>,
     min_ask: Option<u64>,
     bid_side_book: BTreeMap<u64, VecDeque<Order>>,
-    ask_side_book: BTreeMap<u64, VecDeque<Order>>
+    ask_side_book: BTreeMap<u64, VecDeque<Order>>,
+    queue_capacity: usize,
 }
 
 impl Default for OrderBook {
     fn default() -> Self {
-        Self::new()
+        const DEFAULT_QUEUE_CAPACITY: usize = 10;
+        Self::new(DEFAULT_QUEUE_CAPACITY)
     }
 }
 
 impl OrderBook {
-    pub fn new() -> Self {
+    pub fn new(queue_capacity :usize) -> Self {
         OrderBook {
             id: Uuid::new_v4().as_u128(),
             max_bid: None,
             min_ask: None,
             bid_side_book: BTreeMap::new(),
             ask_side_book: BTreeMap::new(),
+            queue_capacity
         }
     }
     
@@ -40,6 +43,10 @@ impl OrderBook {
     
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
+    }
+    
+    pub fn get_queue_capacity(&self) -> usize {
+        self.queue_capacity
     }
     
     pub fn execute(&mut self, operation: OrderOperation) -> ExecutionResult {
@@ -264,12 +271,12 @@ impl OrderBook {
             if price > self.max_bid.unwrap_or(u64::MIN) {
                 self.max_bid = Some(price)
             }
-            Self::enqueue_order(&mut self.bid_side_book, price, order);
+            Self::enqueue_order(&mut self.bid_side_book, price, order, self.queue_capacity);
             FillResult::Created((id, price, remaining_quantity))
         } else if remaining_quantity > 0 {
             self.max_bid = Some(price);
-            Self::enqueue_order(&mut self.bid_side_book, price,
-                                Order { id: order.id, quantity: remaining_quantity });
+            Self::enqueue_order(&mut self.bid_side_book, price, 
+                Order { id: order.id, quantity: remaining_quantity }, self.queue_capacity);
             FillResult::PartiallyFilled(order_fills, (order.id, price, remaining_quantity))
         } else {
             FillResult::Filled(order_fills)
@@ -304,12 +311,12 @@ impl OrderBook {
             if price < self.min_ask.unwrap_or(u64::MAX) {
                 self.min_ask = Some(price)
             }
-            Self::enqueue_order(&mut self.ask_side_book, price, order);
+            Self::enqueue_order(&mut self.ask_side_book, price, order, self.queue_capacity);
             FillResult::Created((id, price, remaining_quantity))
         } else if remaining_quantity > 0 {
             self.min_ask = Some(price);
             Self::enqueue_order(&mut self.ask_side_book, price,
-                                Order { id: order.id, quantity: remaining_quantity });
+                Order { id: order.id, quantity: remaining_quantity }, self.queue_capacity);
             FillResult::PartiallyFilled(order_fills, (order.id, price, remaining_quantity))
         } else {
             FillResult::Filled(order_fills)
@@ -360,8 +367,8 @@ impl OrderBook {
         }
     }
 
-    fn enqueue_order(book: &mut BTreeMap<u64, VecDeque<Order>>, price: u64, order: Order) {
-        book.entry(price).or_insert_with(|| VecDeque::with_capacity(10)).push_back(order);
+    fn enqueue_order(book: &mut BTreeMap<u64, VecDeque<Order>>, price: u64, order: Order, queue_capacity: usize) {
+        book.entry(price).or_insert_with(|| VecDeque::with_capacity(queue_capacity)).push_back(order);
     }
 
     fn remove_order(book: &mut BTreeMap<u64, VecDeque<Order>>, id: &u128, price: &u64) -> bool {
@@ -381,7 +388,7 @@ pub(crate) mod tests {
     use crate::orderbook::{ FillResult, OrderBook, Side};
 
     fn create_orderbook() -> OrderBook {
-        let mut book = OrderBook::new();
+        let mut book = OrderBook::default();
         let orders = vec![
             OrderRequest::new(1, Some(100), 100, Side::Bid, OrderType::Limit),
             OrderRequest::new(2, Some(100), 150, Side::Bid, OrderType::Limit),
@@ -416,7 +423,8 @@ pub(crate) mod tests {
     fn it_inserts_order_at_price_when_queue_does_not_exist() {
         let mut book = create_orderbook();
         let order = Order { id: 11, quantity: 500 };
-        OrderBook::enqueue_order(&mut book.bid_side_book, 200, order);
+        let capacity = book.get_queue_capacity();
+        OrderBook::enqueue_order(&mut book.bid_side_book, 200, order, capacity);
         assert_eq!(OrderBook::get_total_quantity_at_price(&book.bid_side_book, &200), 500);
     }
 
@@ -424,7 +432,8 @@ pub(crate) mod tests {
     fn it_inserts_order_at_price_when_queue_exists() {
         let mut book = create_orderbook();
         let order = Order { id: 11, quantity: 200 };
-        OrderBook::enqueue_order(&mut book.bid_side_book, 100, order);
+        let capacity = book.get_queue_capacity();
+        OrderBook::enqueue_order(&mut book.bid_side_book, 100, order, capacity);
         assert_eq!(OrderBook::get_total_quantity_at_price(&book.bid_side_book, &100), 500);
     }
 
@@ -733,14 +742,14 @@ pub(crate) mod tests {
 
     #[test]
     fn it_returns_none_for_empty_get_max_bid() {
-        let book = OrderBook::new();
+        let book = OrderBook::default();
         let max_bid = book.get_max_bid();
         assert_eq!(max_bid, None);
     }
 
     #[test]
     fn it_returns_none_for_empty_get_min_ask() {
-        let book = OrderBook::new();
+        let book = OrderBook::default();
         let min_ask = book.get_min_ask();
         assert_eq!(min_ask, None);
     }
