@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, VecDeque};
+use uuid::Uuid;
 use crate::models::{
     ExecutionResult, FillResult, ModifyResult, Order, OrderOperation, OrderType, Side
 };
 
 #[derive(Debug)]
 pub struct OrderBook {
+    id: u128,
     max_bid: Option<u64>,
     min_ask: Option<u64>,
     bid_side_book: BTreeMap<u64, VecDeque<Order>>,
@@ -20,11 +22,16 @@ impl Default for OrderBook {
 impl OrderBook {
     pub fn new() -> Self {
         OrderBook {
+            id: Uuid::new_v4().as_u128(),
             max_bid: None,
             min_ask: None,
             bid_side_book: BTreeMap::new(),
             ask_side_book: BTreeMap::new(),
         }
+    }
+    
+    pub fn get_id(&self) -> u128 {
+        self.id
     }
     
     pub fn get_max_bid(&self) -> Option<u64> {
