@@ -14,12 +14,12 @@ pub enum Side {
 /// This represents the available operations that can be performed by the orderbook.
 #[derive(Debug, Copy, Clone)]
 pub enum Operation {
-    /// Limit allows the user to place a limit order through a `LimitOrder` struct.
+    /// Limit allows the user to place a limit order through a [`LimitOrder`] struct.
     Limit(LimitOrder),
-    /// Market allows the user to place a market order through a `MarketOrder` struct.
+    /// Market allows the user to place a market order through a [`MarketOrder`] struct.
     Market(MarketOrder),
     /// Modify allows the user to change the price and quantity of an existing limit order.
-    /// This too takes a `LimitOrder` struct that must contain the original id of the order.
+    /// This too takes a [`LimitOrder`] struct that must contain the original id of the order.
     /// The values can for price and quantity can be same or different.
     Modify(LimitOrder),
     /// Cancel allows the user to cancel an existing limit order.
@@ -31,14 +31,14 @@ pub enum Operation {
 /// The successful cases contain metadata about which makers got matched and the order that gets created.
 #[derive(Debug)]
 pub enum FillResult {
-    /// This means that the limit order was fully filled and contains a vector of `FillMetaData` struct.
+    /// This means that the limit order was fully filled and contains a vector of [`FillMetaData`] struct.
     /// This metadata describes the matched orders.
     Filled(Vec<FillMetaData>),
-    /// This means that the limit order was partially filled and contains the `LimitOrder` that was created,
-    /// as well as a vector of `FillMetaData` struct containing any matched orders.
+    /// This means that the limit order was partially filled and contains the [`LimitOrder`] that was created,
+    /// as well as a vector of [`FillMetaData`] struct containing any matched orders.
     PartiallyFilled(LimitOrder, Vec<FillMetaData>),
     /// This means that the limit order was created and wasn't matched against any other bids.
-    /// This contains a `LimitOrder` struct.
+    /// This contains a [`LimitOrder`] struct.
     Created(LimitOrder),
     /// This is used to represent any failure scenario in order matching.
     Failed,
@@ -48,9 +48,9 @@ pub enum FillResult {
 /// Depending on the flow of the operation, it can amount to one of four possible values.
 #[derive(Debug)]
 pub enum ExecutionResult {
-    /// This is returned every time an order is matched within the execution flow that generates a `FillResult`.
+    /// This is returned every time an order is matched within the execution flow that generates a [`FillResult`].
     Executed(FillResult),
-    /// This is returned when the execution modifies an existing limit order and generates a `ModifyResult` enum.
+    /// This is returned when the execution modifies an existing limit order and generates a [`ModifyResult`] enum.
     Modified(ModifyResult),
     /// This is returned when the execution cancels an existing order with the passed id.
     Cancelled(u128),
@@ -62,7 +62,7 @@ pub enum ExecutionResult {
 #[derive(Debug)]
 pub enum ModifyResult {
     /// This means that post order modification, a new limit order was created.
-    /// `FillResult` will contain any matched orders or the created limit order.
+    /// [`FillResult`] will contain any matched orders or the created limit order.
     Created(FillResult),
     /// This means that the order was modified in place i.e. it's quantity was updated.
     Modified,
@@ -96,7 +96,7 @@ impl LimitOrder {
     ///
     /// # Returns
     ///
-    /// * A `LimitOrder` with the specified arguments.
+    /// * A [`LimitOrder`] with the specified arguments.
     pub fn new(id: u128, price: u64, quantity: u64, side: Side) -> Self {
         Self {
             id,
@@ -116,7 +116,7 @@ impl LimitOrder {
     ///
     /// # Returns
     ///
-    /// * A `LimitOrder` with the specified arguments and an auto generated 128-bit id.
+    /// * A [`LimitOrder`] with the specified arguments and an auto generated 128-bit id.
     pub fn new_uuid_v4(price: u64, quantity: u64, side: Side) -> Self {
         Self {
             id: Uuid::new_v4().as_u128(),
@@ -142,7 +142,7 @@ impl LimitOrder {
 }
 
 /// This represents a market order.
-/// It's essentially same as the `LimitOrder` struct but does not contain an asset price.
+/// It's essentially same as the [`LimitOrder`] struct but does not contain an asset price.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MarketOrder {
     /// This represents unique 128-bit id can is capable of storing uuid v4.
@@ -165,7 +165,7 @@ impl MarketOrder {
     ///
     /// # Returns
     ///
-    /// * A `MarketOrder` with the specified arguments.
+    /// * A [`MarketOrder`] with the specified arguments.
     pub fn new(id: u128, quantity: u64, side: Side) -> Self {
         Self { id, quantity, side }
     }
@@ -179,7 +179,7 @@ impl MarketOrder {
     ///
     /// # Returns
     ///
-    /// * A `MarketOrder` with the specified arguments and an auto generated 128-bit id.
+    /// * A [`MarketOrder`] with the specified arguments and an auto generated 128-bit id.
     pub fn new_uuid_v4(quantity: u64, side: Side) -> Self {
         Self {
             id: Uuid::new_v4().as_u128(),
@@ -188,14 +188,14 @@ impl MarketOrder {
         }
     }
 
-    /// This is a helper method that transforms a `MarketOrder` into a `LimitOrder` with the passed price.
+    /// This is a helper method that transforms a [`MarketOrder`] into a [`LimitOrder`] with the passed price.
     /// # Arguments
     ///
     /// * `price` - The price at which the order will get placed.
     ///
     /// # Returns
     ///
-    /// * A `LimitOrder` with the specified price and same details as the market order that calls the method.
+    /// * A [`LimitOrder`] with the specified price and same details as the market order that calls the method.
     #[inline(always)]
     pub fn to_limit(&self, price: u64) -> LimitOrder {
         LimitOrder {
