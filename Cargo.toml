@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 authors = ["pepemon42069 <pepemon42069@proton.me>"]
 license = "ISC"
+description = "Gemmy is a high performance orderbook written in rust."
+repository = "https://github.com/pepemon42069/gemmy.git"
 
 [dependencies]
 uuid = { version = "1.11.0", features = ["v4"] }
