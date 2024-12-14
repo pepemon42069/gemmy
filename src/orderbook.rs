@@ -135,6 +135,7 @@ impl OrderBook {
                         }
                     }
                 }
+                self.order_store.delete(&id);
                 Some(id)
             }
             None => None
