@@ -7,18 +7,39 @@ use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
 use uuid::Uuid;
 
+/// This is the core structure that is used to create an orderbook.
+/// It stores all limit order data in the form of a two BTreeMaps, each representing either side of the orderbook.
+/// The keys are prices and leaves of the tree are vector dequeues containing indices to the limit orders in store.
+/// This struct also contains the store itself, along with some metadata such as queue capacity, etc.
 #[derive(Debug)]
 pub struct OrderBook {
+    /// A unique id assigned to the orderbook on creation. (uniqueness is not enforced in code)
     id: u128,
+    /// Maximum bid at any given time in the orderbook.
+    /// This is `None`, upon creation and is populated as soon as the first order enters the book.
+    /// Unwrapping in codebase should default to `u64::MIN`
     max_bid: Option<u64>,
+    /// Minimum ask at any given time in the orderbook.
+    /// This is `None`, upon creation and is populated as soon as the first order enters the book.
+    /// Unwrapping in codebase should defaults to `u64::MAX`
     min_ask: Option<u64>,
+    /// This represents the bid side order book.
     bid_side_book: BTreeMap<u64, VecDeque<usize>>,
+    /// This represents the ask side order book.
     ask_side_book: BTreeMap<u64, VecDeque<usize>>,
+    /// A minimum allocation capacity for vector dequeues
     queue_capacity: usize,
+    /// The store for all orders.
     order_store: Store,
 }
 
+/// This assigns the default values for vector dequeue capacity as well as the store capacity when constructing the orderbook.
 impl Default for OrderBook {
+    /// A constructor like method that allocates default values to the orderbook.
+    ///
+    /// # Returns
+    ///
+    /// * An [`OrderBook`] with `DEFAULT_QUEUE_CAPACITY` and `DEFAULT_STORE_CAPACITY`.
     fn default() -> Self {
         const DEFAULT_QUEUE_CAPACITY: usize = 10;
         const DEFAULT_STORE_CAPACITY: usize = 10000;
@@ -28,6 +49,16 @@ impl Default for OrderBook {
 }
 
 impl OrderBook {
+    /// This is a constructor like method.
+    ///
+    /// # Arguments
+    ///
+    /// * `queue_capacity` - This is the pre-allocated size of vector dequeues containing indices of orders in the BTreeMap leaves.
+    /// * `store_capacity` - This is the pre-allocated size of the order store.
+    ///
+    /// # Returns
+    ///
+    /// * An [`OrderBook`] with the specified capacities, and a `Uuid::new_v4()` based id.
     pub fn new(queue_capacity: usize, store_capacity: usize) -> Self {
         OrderBook {
             id: Uuid::new_v4().as_u128(),
@@ -40,18 +71,50 @@ impl OrderBook {
         }
     }
 
+    /// This helps us get the orderbook id
+    ///
+    /// # Returns
+    ///
+    /// * A `u128` orderbook id.
     pub fn get_id(&self) -> u128 {
         self.id
     }
 
+    /// This helps us get the maximum value of the bid side orderbook.
+    ///
+    /// # Returns
+    ///
+    /// * An `Option<u64>` with the maximum value of the bid side orderbook.
     pub fn get_max_bid(&self) -> Option<u64> {
         self.max_bid
     }
 
+    /// This helps us get the minimum value of the ask side orderbook.
+    ///
+    /// # Returns
+    ///
+    /// * An `Option<u64>` with the minimum value of ask bid side orderbook.
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
     }
 
+    /// This method is used to execute an [`Operation`] on the orderbook.
+    /// The flow of this method is dictated by the operation provided, leading to an [`ExecutionResult`].
+    ///
+    /// *Rules of flow:*
+    /// - A limit/market operation leads to `Executed(Filled/PartiallyFilled/Created)` states on success and to `Failed` otherwise.
+    /// - A modification operation leads to `Executed(Modified/Created)` states on success and to `Failed` otherwise.
+    /// - A cancel operation leads to `Cancelled(u128)` state on success and to `Failed` otherwise.
+    ///
+    /// Check out the individual enums [`FillResult`], [`FillMetaData`] and [`ModifyResult`] for more details.
+    ///
+    /// # Arguments
+    ///
+    /// * `operation` - This can be one of four different types, [`Operation::Limit`], [`Operation::Market`], [`Operation::Modify`], [`Operation::Cancel`].
+    ///
+    /// # Returns
+    ///
+    /// * [`ExecutionResult`] that depicts the status of execution of the operation.
     pub fn execute(&mut self, operation: Operation) -> ExecutionResult {
         match operation {
             Operation::Limit(order) => match order.side {
@@ -99,6 +162,16 @@ impl OrderBook {
         }
     }
 
+    /// This method returns the depth of the orderbook upto specified levels.
+    ///
+    /// # Arguments
+    ///
+    /// * `levels` - This represents the levels of depth the orderbook data needs to be aggregated and provided.
+    ///     For example. level = 2 will give top two prices and aggregated quantities on both sides of the orderbook.
+    ///
+    /// # Returns
+    ///
+    /// * A [`Depth`] with both bid/ask side price and quantity aggregations for specified `levels`.
     pub fn depth(&self, levels: usize) -> Depth {
         Depth {
             levels,
@@ -107,6 +180,15 @@ impl OrderBook {
         }
     }
 
+    /// This is an internal method used to cancel an existing order.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - This represents the id of the limit order to be cancelled.
+    ///
+    /// # Returns
+    ///
+    /// * The same id as an optional value. None is returned if it didn't exist.
     fn cancel_order(&mut self, id: u128) -> Option<u128> {
         match self.order_store.get(id) {
             Some((order, index)) => {
@@ -147,6 +229,15 @@ impl OrderBook {
         }
     }
 
+    /// This is an internal method used to modify an existing bid order.
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`LimitOrder`] to be cancelled.
+    ///
+    /// # Returns
+    ///
+    /// * A [`ModifyResult`] depicting whether an order was modified in place, created anew or the operation failed.
     fn modify_limit_buy_order(&mut self, order: LimitOrder) -> ModifyResult {
         if let Some((existing_order, index)) = self.order_store.get_mut(order.id) {
             if let Some(order_queue) = self.bid_side_book.get_mut(&existing_order.price) {
@@ -166,6 +257,15 @@ impl OrderBook {
         ModifyResult::Failed
     }
 
+    /// This is an internal method used to modify an existing ask order.
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`LimitOrder`] to be cancelled.
+    ///
+    /// # Returns
+    ///
+    /// * A [`ModifyResult`] depicting whether an order was modified in place, created anew or the operation failed.
     fn modify_limit_ask_order(&mut self, order: LimitOrder) -> ModifyResult {
         if let Some((existing_order, index)) = self.order_store.get_mut(order.id) {
             if let Some(order_queue) = self.ask_side_book.get_mut(&existing_order.price) {
@@ -185,7 +285,24 @@ impl OrderBook {
         ModifyResult::Failed
     }
 
-
+    /// This is an internal method used to place a limit bid order.
+    ///
+    /// *Algorithm:*
+    /// - start matching from the top of the book till the limit price exceeds top of the book or the quantity is extinguished.
+    /// - skip empty levels
+    /// - update min_ask if a partial fill takes place on a specific level.
+    /// - fill price queues as per its algorithm
+    /// - process resultant fills as per its algorithm
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`LimitOrder`] to be placed.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
+    ///     - Created, returning a [`LimitOrder`] with no fills.
     fn limit_bid_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
@@ -217,6 +334,25 @@ impl OrderBook {
         self.process_bid_fills(order, order_fills, remaining_quantity)
     }
 
+    /// This is an internal method used to place a limit ask order.
+    ///
+    /// *Algorithm:*
+    /// - start matching from the top of the book till the limit price exceeds top of the book or the quantity is extinguished.
+    /// - skip empty levels
+    /// - update max_bid if a partial fill takes place on a specific level.
+    /// - fill price queues as per its algorithm
+    /// - process resultant fills as per its algorithm
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`LimitOrder`] to be placed.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
+    ///     - Created, returning a [`LimitOrder`] with no fills.
     fn limit_ask_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
@@ -248,6 +384,26 @@ impl OrderBook {
         self.process_ask_fills(order, order_fills, remaining_quantity)
     }
 
+    /// This is an internal method used to place a market bid order.
+    ///
+    /// *Algorithm:*
+    /// - start matching from the top of the book till the book extinguishes or the quantity.
+    /// - if book is empty, disallow operation
+    /// - skip empty levels
+    /// - update min_ask if a partial fill takes place on a specific level.
+    /// - fill price queues as per its algorithm
+    /// - before processing fills, if quantity still remains, convert it to limit order at last min_ask
+    /// - process resultant fills as per its algorithm
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`MarketOrder`] to be placed.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
     fn market_bid_order(&mut self, order: MarketOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
@@ -282,6 +438,24 @@ impl OrderBook {
         self.process_bid_fills(order, order_fills, remaining_quantity)
     }
 
+    /// This is an internal method used to process the fills generated by a limit/market bid order.
+    ///
+    /// *Algorithm:*
+    /// - If remaining quantity remains unchanged, insert in queue and store. Return created order.
+    /// - If some quantity remains, match as a limit order at highest price. Return both created order and fills.
+    /// - If no quantity remains, mark the order filled. Return fills.
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents a limit order received or constructed in the caller method.
+    /// * `order_fills` - This represents the vector containing data of order matching.
+    /// * `remaining_quantity` - This represents the quantity left in the order post order matching.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
     fn process_bid_fills(
         &mut self,
         mut order: LimitOrder,
@@ -312,6 +486,26 @@ impl OrderBook {
         }
     }
 
+    /// This is an internal method used to place a market ask order.
+    ///
+    /// *Algorithm:*
+    /// - start matching from the top of the book till the book extinguishes or the quantity.
+    /// - if book is empty, disallow operation
+    /// - skip empty levels
+    /// - update max_bid if a partial fill takes place on a specific level.
+    /// - fill price queues as per its algorithm
+    /// - before processing fills, if quantity still remains, convert it to limit order at last max_bid
+    /// - process resultant fills as per its algorithm
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents the [`MarketOrder`] to be placed.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
     fn market_ask_order(&mut self, order: MarketOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
@@ -346,6 +540,23 @@ impl OrderBook {
         self.process_ask_fills(order, order_fills, remaining_quantity)
     }
 
+    /// This is an internal method used to process the fills generated by a limit/market ask order.
+    /// *Algorithm:*
+    /// - If remaining quantity remains unchanged, insert in queue and store. Return created order.
+    /// - If some quantity remains, match as a limit order at highest price. Return both created order and fills.
+    /// - If no quantity remains, mark the order filled. Return fills.
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - This represents a limit order received or constructed in the caller method.
+    /// * `order_fills` - This represents the vector containing data of order matching.
+    /// * `remaining_quantity` - This represents the quantity left in the order post order matching.
+    ///
+    /// # Returns
+    ///
+    /// * A [`FillResult`] depicting whether an order was:
+    ///     - Fully filled with a resultant vector containing this [`FillMetaData`] generated in order matching.
+    ///     - Partially filled with a [`LimitOrder`] being placed with *remaining* quantity and a vector containing this [`FillMetaData`].
     fn process_ask_fills(
         &mut self,
         mut order: LimitOrder,
@@ -376,6 +587,27 @@ impl OrderBook {
         }
     }
 
+    /// This is an internal method used to process the queue of orders at a particular price.
+    /// Whenever a limit or a market order starts matching, this method is used to pop orders against the quantity in the order.
+    /// *Algorithm:*
+    /// - Dequeue each front index at a price.
+    /// - Get its order details, from store.
+    /// - If it has enough quantity, modify in place. Else, pop and update store.
+    /// - Repeat till queue is empty or no quantity remains to be filled.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Original order id, used fore store operations.
+    /// * `price` - The current price being processed from the top of the book.
+    /// * `side` - The side of the taker.
+    /// * `remaining_quantity` - The quantity left in the original order to be matched.
+    /// * `queue` - The current(price) order queue to fill the order that has been placed.
+    /// * `store` - The order store.
+    /// * `order_fills` - This represents each match that takes place across the entire matching process.
+    ///
+    /// # Returns
+    ///
+    /// * A resultant vector containing [`FillMetaData`] generated in order matching.
     fn process_queue_limit(
         id: &u128,
         price: &u64,
@@ -416,6 +648,17 @@ impl OrderBook {
         }
     }
 
+    /// This is an internal helper method used to aggregate quantity at prices going down the top of the book
+    ///
+    /// # Arguments
+    ///
+    /// * `levels` - The levels we go on either direction to aggregate quantity.
+    /// * `book` - The bid/ask side orderbook we process.
+    /// * `store` - The order store.
+    ///
+    /// # Returns
+    ///
+    /// * A vector containing [`Level`], i.e. price and aggregated quantity.
     fn get_order_levels(
         levels: usize,
         book: &BTreeMap<u64, VecDeque<usize>>,

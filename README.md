@@ -8,7 +8,7 @@ For now the work is ongoing, and the implementation is bound to be full of bugs.
 
 - [ ] Add exhaustive integration tests.
 - [ ] Add unit tests for a few remaining methods.
-- [ ] Complete the documentation of code.
+- [x] Complete the documentation of code.
 - [ ] Replace this readme with a summary of everything.
 - [ ] Publish the crate.
 - [ ] Add stat stracking (volume, last_trade, etc.)
