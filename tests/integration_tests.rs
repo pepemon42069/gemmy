@@ -24,7 +24,7 @@ mod integration_tests {
                     assert_eq!(expected_depth.bids.len(), 1);
                 };
                 assert_order_flow();
-            },
+            }
             _ => panic!("expected ExecutionResult::Executed with FillResult::Created"),
         }
     }
@@ -38,14 +38,13 @@ mod integration_tests {
 
         let test_order_2 = LimitOrder::new(2, 110, 200, Side::Ask);
         let operation_2 = Operation::Limit(test_order_2);
-        
+
         let execution_result_1 = orderbook.execute(operation_1);
         let execution_result_2 = orderbook.execute(operation_2);
-        
+
         let expected_max_bid = orderbook.get_max_bid();
         let expected_min_ask = orderbook.get_min_ask();
         let expected_depth = orderbook.depth(2);
-
 
         match (execution_result_1, execution_result_2) {
             (
@@ -61,8 +60,10 @@ mod integration_tests {
                     assert_eq!(expected_depth.asks.len(), 1);
                 };
                 assert_order_flow();
-            },
-            _ => panic!("expected ExecutionResult::Executed with FillResult::Created for both orders"),
+            }
+            _ => panic!(
+                "expected ExecutionResult::Executed with FillResult::Created for both orders"
+            ),
         }
     }
 }
