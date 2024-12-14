@@ -1,6 +1,6 @@
+use crate::models::{LimitOrder, Side};
 use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
-use crate::models::{LimitOrder, Side};
 
 #[derive(Debug)]
 pub struct Store {
@@ -14,7 +14,7 @@ impl Store {
         let mut store = Self {
             orders: Vec::with_capacity(capacity),
             free_indexes: Vec::with_capacity(capacity),
-            order_id_index_map: HashMap::with_capacity(capacity)
+            order_id_index_map: HashMap::with_capacity(capacity),
         };
         for index in 0..capacity {
             let dummy = LimitOrder::new(0, 0, 0, Side::Bid);
@@ -25,12 +25,14 @@ impl Store {
     }
 
     pub fn get(&self, id: u128) -> Option<(&LimitOrder, usize)> {
-        self.order_id_index_map.get(&id)
+        self.order_id_index_map
+            .get(&id)
             .map(|index| (&self.orders[*index], *index))
     }
-    
+
     pub fn get_mut(&mut self, id: u128) -> Option<(&mut LimitOrder, usize)> {
-        self.order_id_index_map.get_mut(&id)
+        self.order_id_index_map
+            .get_mut(&id)
             .map(|index| (&mut self.orders[*index], *index))
     }
 

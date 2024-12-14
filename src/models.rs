@@ -64,6 +64,11 @@ impl LimitOrder {
             side,
         }
     }
+
+    #[inline(always)]
+    pub fn update_order_quantity(&mut self, quantity: u64) {
+        self.quantity = quantity;
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -83,6 +88,16 @@ impl MarketOrder {
             id: Uuid::new_v4().as_u128(),
             quantity,
             side,
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_limit(&self, price: u64) -> LimitOrder {
+        LimitOrder {
+            id: self.id,
+            price,
+            quantity: self.quantity,
+            side: self.side,
         }
     }
 }

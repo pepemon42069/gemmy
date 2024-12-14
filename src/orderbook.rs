@@ -96,11 +96,9 @@ impl OrderBook {
                     result => ExecutionResult::Modified(result),
                 },
             },
-            Operation::Cancel(id) => {
-                match self.cancel_order(id) {
-                    None => ExecutionResult::Failed("order not found".to_string()),
-                    Some(id) => ExecutionResult::Cancelled(id),
-                }
+            Operation::Cancel(id) => match self.cancel_order(id) {
+                None => ExecutionResult::Failed("order not found".to_string()),
+                Some(id) => ExecutionResult::Cancelled(id),
             },
         }
     }
@@ -138,7 +136,7 @@ impl OrderBook {
                 self.order_store.delete(&id);
                 Some(id)
             }
-            None => None
+            None => None,
         }
     }
 
@@ -231,7 +229,7 @@ impl OrderBook {
                 update_min_ask = true
             }
         }
-        self.process_limit_bid_fills(order, order_fills, remaining_quantity)
+        self.process_bid_fills(order, order_fills, remaining_quantity)
     }
 
     fn limit_ask_order(&mut self, order: LimitOrder) -> FillResult {
@@ -262,7 +260,7 @@ impl OrderBook {
                 update_max_bid = true
             }
         }
-        self.process_limit_ask_fills(order, order_fills, remaining_quantity)
+        self.process_ask_fills(order, order_fills, remaining_quantity)
     }
 
     fn market_bid_order(&mut self, order: MarketOrder) -> FillResult {
@@ -295,18 +293,13 @@ impl OrderBook {
                 update_min_ask = true
             }
         }
-        let order = LimitOrder {
-            id: order.id,
-            price: self.min_ask.unwrap_or(u64::MAX),
-            quantity: order.quantity,
-            side: order.side,
-        };
-        self.process_limit_bid_fills(order, order_fills, remaining_quantity)
+        let order = order.to_limit(self.min_ask.unwrap_or(u64::MAX));
+        self.process_bid_fills(order, order_fills, remaining_quantity)
     }
 
-    fn process_limit_bid_fills(
+    fn process_bid_fills(
         &mut self,
-        order: LimitOrder,
+        mut order: LimitOrder,
         order_fills: Vec<FillMetaData>,
         remaining_quantity: u64,
     ) -> FillResult {
@@ -322,18 +315,13 @@ impl OrderBook {
             FillResult::Created(order)
         } else if remaining_quantity > 0 {
             self.max_bid = Some(order.price);
-            let updated_order = LimitOrder {
-                id: order.id,
-                price: order.price,
-                quantity: remaining_quantity,
-                side: order.side,
-            };
-            let index = self.order_store.insert(updated_order);
+            order.update_order_quantity(remaining_quantity);
+            let index = self.order_store.insert(order);
             self.bid_side_book
                 .entry(order.price)
                 .or_insert_with(|| VecDeque::with_capacity(self.queue_capacity))
                 .push_back(index);
-            FillResult::PartiallyFilled(updated_order, order_fills)
+            FillResult::PartiallyFilled(order, order_fills)
         } else {
             FillResult::Filled(order_fills)
         }
@@ -369,18 +357,13 @@ impl OrderBook {
                 update_max_bid = true
             }
         }
-        let order = LimitOrder {
-            id: order.id,
-            price: self.max_bid.unwrap_or(u64::MIN),
-            quantity: order.quantity,
-            side: order.side,
-        };
-        self.process_limit_ask_fills(order, order_fills, remaining_quantity)
+        let order = order.to_limit(self.max_bid.unwrap_or(u64::MIN));
+        self.process_ask_fills(order, order_fills, remaining_quantity)
     }
 
-    fn process_limit_ask_fills(
+    fn process_ask_fills(
         &mut self,
-        order: LimitOrder,
+        mut order: LimitOrder,
         order_fills: Vec<FillMetaData>,
         remaining_quantity: u64,
     ) -> FillResult {
@@ -396,18 +379,13 @@ impl OrderBook {
             FillResult::Created(order)
         } else if remaining_quantity > 0 {
             self.min_ask = Some(order.price);
-            let updated_order = LimitOrder {
-                id: order.id,
-                price: order.price,
-                quantity: remaining_quantity,
-                side: order.side,
-            };
-            let index = self.order_store.insert(updated_order);
+            order.update_order_quantity(remaining_quantity);
+            let index = self.order_store.insert(order);
             self.ask_side_book
                 .entry(order.price)
                 .or_insert_with(|| VecDeque::with_capacity(self.queue_capacity))
                 .push_back(index);
-            FillResult::PartiallyFilled(updated_order, order_fills)
+            FillResult::PartiallyFilled(order, order_fills)
         } else {
             FillResult::Filled(order_fills)
         }
@@ -422,30 +400,32 @@ impl OrderBook {
         store: &mut Store,
         order_fills: &mut Vec<FillMetaData>,
     ) {
-        while let Some(order_index) = queue.front() {
+        while let Some(front_order_index) = queue.front() {
             if *remaining_quantity == 0 {
                 break;
             }
-            let queue_order = store.index_mut(*order_index);
-            if queue_order.quantity > *remaining_quantity {
-                queue_order.quantity -= *remaining_quantity;
+            let front_order_data = store.index_mut(*front_order_index);
+            if front_order_data.quantity > *remaining_quantity {
+                front_order_data.quantity -= *remaining_quantity;
                 order_fills.push(FillMetaData {
                     order_id: *id,
-                    matched_order_id: queue_order.id,
+                    matched_order_id: front_order_data.id,
                     taker_side: side,
                     price: *price,
                     quantity: *remaining_quantity,
                 });
                 *remaining_quantity = 0;
             } else {
-                *remaining_quantity -= queue_order.quantity;
+                *remaining_quantity -= front_order_data.quantity;
                 order_fills.push(FillMetaData {
                     order_id: *id,
-                    matched_order_id: queue_order.id,
+                    matched_order_id: front_order_data.id,
                     taker_side: side,
                     price: *price,
-                    quantity: queue_order.quantity,
+                    quantity: front_order_data.quantity,
                 });
+                let id = front_order_data.id;
+                store.delete(&id);
                 queue.pop_front();
             }
         }
