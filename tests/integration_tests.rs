@@ -102,7 +102,7 @@ mod integration_tests {
             _ => panic!("expected order to be filled"),
         }
 
-        // we create a thord and final order to see a better view of the book
+        // we create a third and final order to see a better view of the book
         let order_bid_second = LimitOrder::new(3, 50, 100, Side::Bid);
         let operation_limit_bid = Operation::Limit(order_bid_second);
         match orderbook.execute(operation_limit_bid) {

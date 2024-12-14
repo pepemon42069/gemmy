@@ -1,5 +1,8 @@
 # Gemmy
 
+[![crates.io](https://img.shields.io/badge/crate-0.1.2-yellow)](https://docs.rs/gemmy/0.1.2/gemmy/)
+[![Documentation](https://img.shields.io/badge/docs-0.1.2-blue)](https://docs.rs/gemmy/0.1.2/gemmy/)
+
 My goal with writing gemmy is to create a useful, and production ready high performance orderbook written in rust.
 
 For now the work is ongoing, and the implementation is bound to be full of bugs. I will be adding more to this readme as I keep doing more.
@@ -51,7 +54,7 @@ fn example() {
         _ => panic!("expected order to be filled"),
     }
     
-    // we create a thord and final order to see a better view of the book
+    // we create a third and final order to see a better view of the book
     let order_bid_second = LimitOrder::new(3, 50, 100, Side::Bid);
     let operation_limit_bid = Operation::Limit(order_bid_second);
     match orderbook.execute(operation_limit_bid) {
