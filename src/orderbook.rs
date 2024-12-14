@@ -96,7 +96,12 @@ impl OrderBook {
                     result => ExecutionResult::Modified(result),
                 },
             },
-            Operation::Cancel(id) => self.cancel_order(id),
+            Operation::Cancel(id) => {
+                match self.cancel_order(id) {
+                    None => ExecutionResult::Failed("order not found".to_string()),
+                    Some(id) => ExecutionResult::Cancelled(id),
+                }
+            },
         }
     }
 
@@ -113,7 +118,7 @@ impl OrderBook {
         orders
     }
 
-    fn cancel_order(&mut self, id: u128) -> ExecutionResult {
+    fn cancel_order(&mut self, id: u128) -> Option<u128> {
         match self.order_store.get(id) {
             Some((order, index)) => {
                 match order.side {
@@ -130,10 +135,9 @@ impl OrderBook {
                         }
                     }
                 }
-                self.order_store.delete(&id);
-                ExecutionResult::Cancelled(id)
+                Some(id)
             }
-            None => ExecutionResult::Failed("no order found to cancel".to_string()),
+            None => None
         }
     }
 
@@ -508,7 +512,7 @@ pub(crate) mod tests {
         let order = LimitOrder::new(11, 115, 100, Side::Bid);
         book.execute(Operation::Limit(order));
         match book.cancel_order(order.id) {
-            ExecutionResult::Cancelled(id) => {
+            Some(id) => {
                 let store_order = book.order_store.get(id);
                 assert!(id == order.id && book.get_max_bid() == Some(110) && store_order.is_none())
             }
@@ -520,9 +524,7 @@ pub(crate) mod tests {
     fn it_cancels_nothing_when_order_does_not_exist() {
         let mut book = create_orderbook();
         match book.cancel_order(11) {
-            ExecutionResult::Failed(message) => {
-                assert_eq!(message, "no order found to cancel")
-            }
+            None => (),
             _ => panic!("test failed"),
         }
     }
