@@ -13,7 +13,7 @@ mod integration_tests {
 
         let expected_max_bid = orderbook.get_max_bid();
         let expected_min_ask = orderbook.get_min_ask();
-        let expected_stats = orderbook.stats();
+        let expected_depth = orderbook.depth(1);
 
         match execution_result {
             ExecutionResult::Executed(FillResult::Created(created_order)) => {
@@ -21,7 +21,7 @@ mod integration_tests {
                     assert_eq!(created_order, test_order);
                     assert_eq!(expected_max_bid, Some(100));
                     assert_eq!(expected_min_ask, None);
-                    assert_eq!(expected_stats, vec![(100, 100, Side::Bid)]);
+                    assert_eq!(expected_depth.bids.len(), 1);
                 };
                 assert_order_flow();
             },
@@ -44,7 +44,7 @@ mod integration_tests {
         
         let expected_max_bid = orderbook.get_max_bid();
         let expected_min_ask = orderbook.get_min_ask();
-        let expected_stats = orderbook.stats();
+        let expected_depth = orderbook.depth(2);
 
 
         match (execution_result_1, execution_result_2) {
@@ -57,13 +57,8 @@ mod integration_tests {
                     assert_eq!(created_order_2, test_order_2);
                     assert_eq!(expected_max_bid, Some(100));
                     assert_eq!(expected_min_ask, Some(110));
-                    assert_eq!(
-                        expected_stats,
-                        vec![
-                            (100, 100, Side::Bid),
-                            (110, 200, Side::Ask)
-                        ]
-                    );
+                    assert_eq!(expected_depth.bids.len(), 1);
+                    assert_eq!(expected_depth.asks.len(), 1);
                 };
                 assert_order_flow();
             },

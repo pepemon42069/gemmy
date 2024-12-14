@@ -110,3 +110,16 @@ pub struct FillMetaData {
     pub price: u64,
     pub quantity: u64,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Depth {
+    pub levels: usize,
+    pub bids: Vec<Level>,
+    pub asks: Vec<Level>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Level {
+    pub price: u64,
+    pub quantity: u64,
+}

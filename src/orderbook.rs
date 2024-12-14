@@ -1,7 +1,4 @@
-use crate::models::{
-    ExecutionResult, FillMetaData, FillResult, LimitOrder, MarketOrder, ModifyResult, Operation,
-    Side,
-};
+use crate::models::{Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder, ModifyResult, Operation, Side};
 use crate::store::Store;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
@@ -99,17 +96,12 @@ impl OrderBook {
         }
     }
 
-    pub fn stats(&self) -> Vec<(u64, u64, Side)> {
-        let mut orders = vec![];
-        for (price, _) in self.bid_side_book.iter() {
-            let quantity = self.get_total_quantity_at_price(Side::Bid, price);
-            orders.push((*price, quantity, Side::Bid));
+    pub fn depth(&self, levels: usize) -> Depth {
+        Depth {
+            levels, 
+            bids: Self::get_order_levels(levels, &self.bid_side_book, &self.order_store),
+            asks: Self::get_order_levels(levels, &self.ask_side_book, &self.order_store)
         }
-        for (price, _) in self.ask_side_book.iter() {
-            let quantity = self.get_total_quantity_at_price(Side::Ask, price);
-            orders.push((*price, quantity, Side::Ask));
-        }
-        orders
     }
 
     fn cancel_order(&mut self, id: u128) -> Option<u128> {
@@ -427,30 +419,29 @@ impl OrderBook {
         }
     }
 
-    fn get_total_quantity_at_price(&self, side: Side, price: &u64) -> u64 {
-        match side {
-            Side::Bid => match self.bid_side_book.get(price) {
-                Some(orders) => orders
-                    .iter()
-                    .map(|index| self.order_store.index(*index).quantity)
-                    .sum(),
-                None => 0,
-            },
-            Side::Ask => match self.ask_side_book.get(price) {
-                Some(orders) => orders
-                    .iter()
-                    .map(|index| self.order_store.index(*index).quantity)
-                    .sum(),
-                None => 0,
-            },
-        }
+    fn get_order_levels(
+        levels: usize, 
+        book: &BTreeMap<u64, VecDeque<usize>>, 
+        store: &Store
+    ) -> Vec<Level> {
+        let mut orders = Vec::with_capacity(levels);
+        book.iter().for_each(|(price, queue)| {
+            orders.push(Level {
+                price: *price,
+                quantity: queue.iter().map(|index| store.index(*index).quantity).sum()
+            });
+        });
+        orders
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, VecDeque};
+    use std::ops::Index;
     use crate::models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation};
     use crate::orderbook::{FillResult, OrderBook, Side};
+    use crate::store::Store;
 
     fn create_orderbook() -> OrderBook {
         let mut book = OrderBook::default();
@@ -476,10 +467,20 @@ mod tests {
         fills.iter().map(|f| f.matched_order_id).collect()
     }
 
+    fn get_total_quantity_at_price(price: &u64, book: &BTreeMap<u64, VecDeque<usize>>, store: &Store) -> u64 {
+        match book.get(price) {
+            Some(orders) => orders
+                .iter()
+                .map(|index| store.index(*index).quantity)
+                .sum(),
+            None => 0,
+        }
+    }
+    
     #[test]
     fn it_gets_total_quantity_at_price() {
         let book = create_orderbook();
-        let result = book.get_total_quantity_at_price(Side::Bid, &100);
+        let result = get_total_quantity_at_price(&100, &book.bid_side_book, &book.order_store);
         assert_eq!(300, result);
     }
 
@@ -525,7 +526,7 @@ mod tests {
         let order = LimitOrder::new(11, 130, 400, Side::Bid);
         match book.limit_bid_order(order) {
             FillResult::Filled(order_fills) => {
-                let quantity = book.get_total_quantity_at_price(Side::Ask, &130);
+                let quantity = get_total_quantity_at_price(&130, &book.ask_side_book, &book.order_store);
                 assert!(fills_to_ids(order_fills) == vec![6, 7, 8, 9] && quantity == 200);
             }
             _ => panic!("test failed"),
@@ -569,7 +570,7 @@ mod tests {
         let order = LimitOrder::new(11, 100, 400, Side::Ask);
         match book.limit_ask_order(order) {
             FillResult::Filled(order_fills) => {
-                let quantity = book.get_total_quantity_at_price(Side::Bid, &order.price);
+                let quantity = get_total_quantity_at_price(&order.price, &book.bid_side_book, &book.order_store);
                 assert!(fills_to_ids(order_fills) == vec![4, 5, 1] && quantity == 200);
             }
             _ => panic!("test failed"),
@@ -600,7 +601,7 @@ mod tests {
         let order = LimitOrder::new(1, 100, 150, Side::Bid);
         book.modify_limit_buy_order(order);
         assert_eq!(
-            book.get_total_quantity_at_price(Side::Bid, &order.price),
+            get_total_quantity_at_price(&order.price, &book.bid_side_book, &book.order_store),
             350
         );
     }
@@ -611,7 +612,7 @@ mod tests {
         let order = LimitOrder::new(6, 120, 150, Side::Ask);
         book.modify_limit_ask_order(order);
         assert_eq!(
-            book.get_total_quantity_at_price(Side::Ask, &order.price),
+            get_total_quantity_at_price(&order.price, &book.ask_side_book, &book.order_store),
             350
         );
     }
@@ -621,8 +622,8 @@ mod tests {
         let mut book = create_orderbook();
         let order = LimitOrder::new(1, 120, 400, Side::Bid);
         book.modify_limit_buy_order(order);
-        let quantity_at_100 = book.get_total_quantity_at_price(Side::Bid, &100);
-        let quantity_at_120 = book.get_total_quantity_at_price(Side::Bid, &120);
+        let quantity_at_100 = get_total_quantity_at_price(&100, &book.bid_side_book, &book.order_store);
+        let quantity_at_120 = get_total_quantity_at_price(&120, &book.bid_side_book, &book.order_store);
         assert!(quantity_at_100 == 200 && quantity_at_120 == 100);
     }
 
@@ -631,8 +632,8 @@ mod tests {
         let mut book = create_orderbook();
         let order = LimitOrder::new(6, 110, 400, Side::Ask);
         book.modify_limit_ask_order(order);
-        let quantity_at_120 = book.get_total_quantity_at_price(Side::Ask, &120);
-        let quantity_at_110 = book.get_total_quantity_at_price(Side::Ask, &110);
+        let quantity_at_120 = get_total_quantity_at_price(&120, &book.ask_side_book, &book.order_store);
+        let quantity_at_110 = get_total_quantity_at_price(&110, &book.ask_side_book, &book.order_store);
         assert!(quantity_at_120 == 200 && quantity_at_110 == 100);
     }
 
@@ -641,7 +642,7 @@ mod tests {
         let mut book = create_orderbook();
         let order = LimitOrder::new(1, 100, 100, Side::Bid);
         book.modify_limit_buy_order(order);
-        assert_eq!(book.get_total_quantity_at_price(Side::Bid, &100), 300);
+        assert_eq!(get_total_quantity_at_price(&100, &book.bid_side_book, &book.order_store), 300);
     }
 
     #[test]
@@ -650,7 +651,7 @@ mod tests {
         let order = MarketOrder::new(11, 500, Side::Bid);
         match book.market_bid_order(order) {
             FillResult::Filled(order_fills) => {
-                let quantity = book.get_total_quantity_at_price(Side::Ask, &130);
+                let quantity = get_total_quantity_at_price(&130, &book.ask_side_book, &book.order_store);
                 assert!(fills_to_ids(order_fills) == vec![6, 7, 8, 9] && quantity == 100);
             }
             _ => panic!("test failed"),
@@ -663,7 +664,7 @@ mod tests {
         let order = MarketOrder::new(11, 500, Side::Ask);
         match book.market_ask_order(order) {
             FillResult::Filled(order_fills) => {
-                let quantity = book.get_total_quantity_at_price(Side::Bid, &100);
+                let quantity = get_total_quantity_at_price(&100, &book.bid_side_book, &book.order_store);
                 assert!(fills_to_ids(order_fills) == vec![4, 5, 1, 2] && quantity == 100);
             }
             _ => panic!("test failed"),
@@ -785,14 +786,21 @@ mod tests {
     }
 
     #[test]
-    fn it_shows_stats() {
+    fn it_tests_orderbook_depth() {
         let book = create_orderbook();
-        let stats = book.stats();
+        let depth = book.depth(2);
         assert!(
-            stats.len() == 4
-                && stats
-                    .iter()
-                    .any(|(p, q, s)| *p == 100 && *q == 300 && *s == Side::Bid)
+            depth.levels == 2
+                && depth.bids.len() == 2
+                && depth.asks.len() == 2
+                && depth.bids[0].price == 100
+                && depth.bids[1].price == 110
+                && depth.bids[0].quantity == 300
+                && depth.bids[1].quantity == 300
+                && depth.asks[0].price == 120
+                && depth.asks[1].price == 130
+                && depth.asks[0].quantity == 300
+                && depth.asks[1].quantity == 300
         );
     }
 
