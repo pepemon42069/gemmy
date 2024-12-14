@@ -11,7 +11,6 @@ mod integration_tests {
         let operation = Operation::Limit(test_order);
         let execution_result = orderbook.execute(operation);
 
-        let (retrieved_order, _) = orderbook.order_store.get(test_order.id).unwrap();
         let expected_max_bid = orderbook.get_max_bid();
         let expected_min_ask = orderbook.get_min_ask();
         let expected_stats = orderbook.stats();
@@ -20,7 +19,6 @@ mod integration_tests {
             ExecutionResult::Executed(FillResult::Created(created_order)) => {
                 let assert_order_flow = || {
                     assert_eq!(created_order, test_order);
-                    assert_eq!(*retrieved_order, test_order);
                     assert_eq!(expected_max_bid, Some(100));
                     assert_eq!(expected_min_ask, None);
                     assert_eq!(expected_stats, vec![(100, 100, Side::Bid)]);
@@ -43,9 +41,6 @@ mod integration_tests {
         
         let execution_result_1 = orderbook.execute(operation_1);
         let execution_result_2 = orderbook.execute(operation_2);
-
-        let (retrieved_order_1, _) = orderbook.order_store.get(test_order_1.id).unwrap();
-        let (retrieved_order_2, _) = orderbook.order_store.get(test_order_2.id).unwrap();
         
         let expected_max_bid = orderbook.get_max_bid();
         let expected_min_ask = orderbook.get_min_ask();
@@ -60,8 +55,6 @@ mod integration_tests {
                 let assert_order_flow = || {
                     assert_eq!(created_order_1, test_order_1);
                     assert_eq!(created_order_2, test_order_2);
-                    assert_eq!(*retrieved_order_1, test_order_1);
-                    assert_eq!(*retrieved_order_2, test_order_2);
                     assert_eq!(expected_max_bid, Some(100));
                     assert_eq!(expected_min_ask, Some(110));
                     assert_eq!(

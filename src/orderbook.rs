@@ -15,7 +15,7 @@ pub struct OrderBook {
     bid_side_book: BTreeMap<u64, VecDeque<usize>>,
     ask_side_book: BTreeMap<u64, VecDeque<usize>>,
     queue_capacity: usize,
-    pub order_store: Store,
+    order_store: Store,
 }
 
 impl Default for OrderBook {
@@ -50,10 +50,6 @@ impl OrderBook {
 
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
-    }
-
-    pub fn get_queue_capacity(&self) -> usize {
-        self.queue_capacity
     }
 
     pub fn execute(&mut self, operation: Operation) -> ExecutionResult {
@@ -452,7 +448,7 @@ impl OrderBook {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use crate::models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation};
     use crate::orderbook::{FillResult, OrderBook, Side};
 
