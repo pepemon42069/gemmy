@@ -425,7 +425,7 @@ impl OrderBook {
         store: &Store
     ) -> Vec<Level> {
         let mut orders = Vec::with_capacity(levels);
-        book.iter().for_each(|(price, queue)| {
+        book.iter().take(levels).for_each(|(price, queue)| {
             orders.push(Level {
                 price: *price,
                 quantity: queue.iter().map(|index| store.index(*index).quantity).sum()
