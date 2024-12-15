@@ -1,7 +1,4 @@
-use crate::models::{
-    Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder, ModifyResult,
-    Operation, Side,
-};
+use crate::models::{ProtoBuf, Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder, ModifyResult, Operation, ProtoBufResult, Side};
 use crate::store::Store;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
@@ -161,6 +158,10 @@ impl OrderBook {
             },
         }
     }
+    
+    pub fn execute_proto(&mut self, operation: Operation) -> ProtoBufResult {
+        self.execute(operation).to_protobuf()
+    }
 
     /// This method returns the depth of the orderbook upto specified levels.
     ///
@@ -249,7 +250,7 @@ impl OrderBook {
                     }
                     if existing_order.quantity != order.quantity {
                         existing_order.quantity = order.quantity;
-                        return ModifyResult::Modified;
+                        return ModifyResult::Modified(order.id);
                     }
                 }
             }
@@ -277,7 +278,7 @@ impl OrderBook {
                     }
                     if existing_order.quantity != order.quantity {
                         existing_order.quantity = order.quantity;
-                        return ModifyResult::Modified;
+                        return ModifyResult::Modified(order.id);
                     }
                 }
             }

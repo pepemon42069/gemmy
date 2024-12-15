@@ -10,6 +10,8 @@ repository = "https://github.com/pepemon42069/gemmy.git"
 [dependencies]
 uuid = { version = "1.11.0", features = ["v4"] }
 serde = { version = "1.0.216", features = ["derive"] }
+prost = "0.13.4"
+prost-build = "0.13.4"
 
 [dev-dependencies]
 criterion = { version = "0.5.1" }
@@ -28,3 +30,6 @@ codegen-units = 1
 [[bench]]
 name = "gemmy_benchmarks"
 harness = false
+
+[build-dependencies]
+prost-build = "0.13.4"
