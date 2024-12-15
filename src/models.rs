@@ -266,6 +266,7 @@ pub struct Level {
     pub quantity: u64,
 }
 
+#[derive(Debug, Clone)]
 pub enum ProtoBufResult {
     Create(CreateOrder),
     Fill(FillOrder),
