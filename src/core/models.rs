@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::protobuf::types::{CancelModifyOrder, CreateOrder, Failure, FillOrder, FillOrderData, PartialFillOrder};
+use crate::protobuf::types::{
+    CancelModifyOrder, CreateOrder, Failure, FillOrder, FillOrderData, PartialFillOrder
+};
 
 /// Side, as the name indicates is used to represent a side of the orderbook.
 /// The traits Serialize, Deserialize are implemented to broaden its utility.

@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod integration_tests {
-    use gemmy::models::{ExecutionResult, FillResult, LimitOrder, MarketOrder, Operation, Side};
-    use gemmy::orderbook::OrderBook;
+    use gemmy::core::{
+        models::{ExecutionResult, FillResult, LimitOrder, MarketOrder, Operation, Side},
+        orderbook::OrderBook
+    };
 
     #[test]
     fn orderbook_flow_place_limit_ask_order() {

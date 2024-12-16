@@ -1,5 +1,10 @@
-use crate::models::{ProtoBuf, Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder, ModifyResult, Operation, ProtoBufResult, Side};
-use crate::store::Store;
+use super::{
+    models::{
+        ProtoBuf, Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder,
+        ModifyResult, Operation, ProtoBufResult, Side
+    },
+    store::Store
+};
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
 use uuid::Uuid;
@@ -678,9 +683,11 @@ impl OrderBook {
 
 #[cfg(test)]
 mod tests {
-    use crate::models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation};
-    use crate::orderbook::{FillResult, OrderBook, Side};
-    use crate::store::Store;
+    use crate::core::{
+        models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation, FillResult, Side},
+        orderbook::OrderBook,
+        store::Store,
+    };
     use std::collections::{BTreeMap, VecDeque};
     use std::ops::Index;
 
