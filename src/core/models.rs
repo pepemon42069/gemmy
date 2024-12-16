@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::protobuf::types::{
-    CancelModifyOrder, CreateOrder, Failure, FillOrder, FillOrderData, PartialFillOrder
+use crate::protobuf::models::{
+    CancelModifyOrder, CreateOrder, GenericMessage, FillOrder, FillOrderData, PartialFillOrder
 };
 
 /// Side, as the name indicates is used to represent a side of the orderbook.
@@ -12,6 +12,16 @@ pub enum Side {
     Bid = 0,
     /// Ask represents the sell side of the orderbook.
     Ask = 1,
+}
+
+impl From<i32> for Side {
+    fn from(value: i32) -> Self {
+        match value { 
+            0 => Side::Bid, 
+            1 => Side::Ask, 
+            _ => panic!("invalid side")
+        }
+    }
 }
 
 /// This represents the available operations that can be performed by the orderbook.
@@ -274,7 +284,7 @@ pub enum ProtoBufResult {
     Fill(FillOrder),
     PartialFill(PartialFillOrder),
     CancelModify(CancelModifyOrder),
-    Failed(Failure),
+    Failed(GenericMessage),
 }
 
 pub trait ProtoBuf {
@@ -307,7 +317,7 @@ impl ProtoBuf for FillResult {
                     )
                 }
             ),
-            FillResult::Failed => ProtoBufResult::Failed(Failure { message: "failed to place order".to_string() })
+            FillResult::Failed => ProtoBufResult::Failed(GenericMessage { message: "failed to place order".to_string() })
         }
     }
 }
@@ -321,7 +331,7 @@ impl ProtoBuf for ModifyResult {
                     status: 3,
                     order_id: id.to_be_bytes().to_vec()
                 }),
-            ModifyResult::Failed => ProtoBufResult::Failed(Failure { message: "failed to modify order".to_string() })
+            ModifyResult::Failed => ProtoBufResult::Failed(GenericMessage { message: "failed to modify order".to_string() })
         }
     }
 }
@@ -336,7 +346,7 @@ impl ProtoBuf for ExecutionResult {
                     status: 4,
                     order_id: id.to_be_bytes().to_vec()
                 }),
-            ExecutionResult::Failed(message) => ProtoBufResult::Failed(Failure { message: message.to_string() })
+            ExecutionResult::Failed(message) => ProtoBufResult::Failed(GenericMessage { message: message.to_string() })
         }
     }
 }

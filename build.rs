@@ -1,13 +1,13 @@
 use std::io::Result;
 
 fn main() -> Result<()> {
-    let mut config = prost_build::Config::new();
-    let out_dir = "src/protobuf";
-    config.out_dir(out_dir);
-
-    config.compile_protos(
-        &["resources/protobuf/types.proto"], 
+    tonic_build::configure()
+        .build_server(true)
+        .build_client(false)
+        .out_dir("src/protobuf")
+        .compile_protos(&["resources/protobuf/models.proto", "resources/protobuf/services.proto"],
         &["resources/protobuf"])?;
+
     Ok(())
 }
 

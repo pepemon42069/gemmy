@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package types;
+package models;
 
 enum OrderSide {
   Bid = 0;
@@ -47,6 +47,17 @@ message CancelModifyOrder {
   bytes order_id = 2;
 }
 
-message Failure {
+message GenericMessage {
   string message = 1;
+}
+
+message CreateLimitOrderRequest {
+  uint64 price = 1;
+  uint64 quantity = 2;
+  OrderSide side = 3;
+}
+
+message CreateMarketOrderRequest {
+  uint64 quantity = 1;
+  OrderSide side = 2;
 }

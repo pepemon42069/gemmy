@@ -49,9 +49,25 @@ pub struct CancelModifyOrder {
     pub order_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Failure {
+pub struct GenericMessage {
     #[prost(string, tag = "1")]
     pub message: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CreateLimitOrderRequest {
+    #[prost(uint64, tag = "1")]
+    pub price: u64,
+    #[prost(uint64, tag = "2")]
+    pub quantity: u64,
+    #[prost(enumeration = "OrderSide", tag = "3")]
+    pub side: i32,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CreateMarketOrderRequest {
+    #[prost(uint64, tag = "1")]
+    pub quantity: u64,
+    #[prost(enumeration = "OrderSide", tag = "2")]
+    pub side: i32,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
