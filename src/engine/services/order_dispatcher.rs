@@ -10,7 +10,7 @@ use crate::protobuf::{
         OrderDispatcherServer
     }
 };
-use crate::protobuf::models::{CreateLimitOrderRequest, CreateMarketOrderRequest};
+use crate::protobuf::models::{CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest, ModifyLimitOrderRequest};
 
 pub type DispatchService = InterceptedService<
     OrderDispatcherServer<OrderDispatchService>,
@@ -48,6 +48,25 @@ impl OrderDispatchService {
                 request.quantity,
                 Side::from(request.side),
             )
+        )
+    }
+    
+    fn build_modify_payload(request: Request<ModifyLimitOrderRequest>) -> Operation {
+        let request = request.into_inner();
+        Operation::Modify(
+            LimitOrder::new(
+                u128::from_be_bytes(request.order_id.try_into().unwrap()),
+                request.price,
+                request.quantity,
+                Side::from(request.side)
+            )
+        )
+    }
+    
+    fn build_cancel_payload(request: Request<CancelLimitOrderRequest>) -> Operation {
+        let request = request.into_inner();
+        Operation::Cancel(
+            u128::from_be_bytes(request.order_id.try_into().unwrap())
         )
     }
 
@@ -88,5 +107,13 @@ impl OrderDispatcher for OrderDispatchService {
         request: Request<CreateMarketOrderRequest>
     ) -> Result<Response<GenericMessage>, Status> {
         self.execute(Self::build_market_payload(request)).await
+    }
+
+    async fn modify(&self, request: Request<ModifyLimitOrderRequest>) -> Result<Response<GenericMessage>, Status> {
+        self.execute(Self::build_modify_payload(request)).await
+    }
+
+    async fn cancel(&self, request: Request<CancelLimitOrderRequest>) -> Result<Response<GenericMessage>, Status> {
+        self.execute(Self::build_cancel_payload(request)).await
     }
 }

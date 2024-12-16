@@ -30,9 +30,18 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     // environment variables
     dotenv().ok();
     let address = env::var("SOCKET_ADDRESS")?.parse()?;
+    let file_logging = env::var("FILE_LOGGING").unwrap_or_else(|_| "false".to_string());
     
-    // server configuration
-    let _guard = configure_logging();
+    // log configuration
+    let _guard;
+    if file_logging == "true" {
+        _guard = configure_logging();
+    } else {
+        tracing_subscriber::fmt()
+            .with_ansi(true)
+            .with_max_level(tracing::Level::INFO)
+            .init();
+    }
 
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);

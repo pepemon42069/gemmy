@@ -61,3 +61,14 @@ message CreateMarketOrderRequest {
   uint64 quantity = 1;
   OrderSide side = 2;
 }
+
+message ModifyLimitOrderRequest {
+  bytes order_id = 1;
+  uint64 price = 2;
+  uint64 quantity = 3;
+  OrderSide side= 4;
+}
+
+message CancelLimitOrderRequest {
+  bytes order_id = 1;
+}

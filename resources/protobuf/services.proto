@@ -7,4 +7,6 @@ import "models.proto";
 service OrderDispatcher {
   rpc limit(models.CreateLimitOrderRequest) returns (models.GenericMessage);
   rpc market(models.CreateMarketOrderRequest) returns (models.GenericMessage);
+  rpc modify(models.ModifyLimitOrderRequest) returns (models.GenericMessage);
+  rpc cancel(models.CancelLimitOrderRequest) returns (models.GenericMessage);
 }

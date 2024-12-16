@@ -69,6 +69,22 @@ pub struct CreateMarketOrderRequest {
     #[prost(enumeration = "OrderSide", tag = "2")]
     pub side: i32,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ModifyLimitOrderRequest {
+    #[prost(bytes = "vec", tag = "1")]
+    pub order_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint64, tag = "2")]
+    pub price: u64,
+    #[prost(uint64, tag = "3")]
+    pub quantity: u64,
+    #[prost(enumeration = "OrderSide", tag = "4")]
+    pub side: i32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelLimitOrderRequest {
+    #[prost(bytes = "vec", tag = "1")]
+    pub order_id: ::prost::alloc::vec::Vec<u8>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum OrderSide {

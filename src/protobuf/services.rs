@@ -26,6 +26,20 @@ pub mod order_dispatcher_server {
             tonic::Response<super::super::models::GenericMessage>,
             tonic::Status,
         >;
+        async fn modify(
+            &self,
+            request: tonic::Request<super::super::models::ModifyLimitOrderRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Status,
+        >;
+        async fn cancel(
+            &self,
+            request: tonic::Request<super::super::models::CancelLimitOrderRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct OrderDispatcherServer<T> {
@@ -184,6 +198,102 @@ pub mod order_dispatcher_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = marketSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/services.OrderDispatcher/modify" => {
+                    #[allow(non_camel_case_types)]
+                    struct modifySvc<T: OrderDispatcher>(pub Arc<T>);
+                    impl<
+                        T: OrderDispatcher,
+                    > tonic::server::UnaryService<
+                        super::super::models::ModifyLimitOrderRequest,
+                    > for modifySvc<T> {
+                        type Response = super::super::models::GenericMessage;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::models::ModifyLimitOrderRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as OrderDispatcher>::modify(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = modifySvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/services.OrderDispatcher/cancel" => {
+                    #[allow(non_camel_case_types)]
+                    struct cancelSvc<T: OrderDispatcher>(pub Arc<T>);
+                    impl<
+                        T: OrderDispatcher,
+                    > tonic::server::UnaryService<
+                        super::super::models::CancelLimitOrderRequest,
+                    > for cancelSvc<T> {
+                        type Response = super::super::models::GenericMessage;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::models::CancelLimitOrderRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as OrderDispatcher>::cancel(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = cancelSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
