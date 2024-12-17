@@ -716,7 +716,6 @@ impl OrderBook {
     
     pub fn request_for_quote(&self, market_order: MarketOrder) -> RfqStatus {
         let quantity = market_order.quantity;
-        println!("details: {:#?} {:?} {:?}", market_order, self.min_ask, self.max_bid);
         if quantity == 0 { return RfqStatus::NotPossible; }
         match market_order.side {
             Side::Bid => {
