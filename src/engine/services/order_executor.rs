@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
 use crate::core::orderbook::OrderBook;
 
-pub fn executor(rx: Receiver<Operation>, mut orderbook: Arc<RwLock<OrderBook>>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
+pub fn executor(rx: Receiver<Operation>, orderbook: Arc<RwLock<OrderBook>>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
     let mut rx = rx;
     tokio::spawn(async move {
         while let Some(order) = rx.recv().await {
