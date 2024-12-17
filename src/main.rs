@@ -1,11 +1,13 @@
 use std::{env, error::Error, sync::Arc};
 use dotenv::dotenv;
+use rdkafka::ClientConfig;
+use rdkafka::producer::FutureProducer;
 use tokio::{signal, sync::{Notify, mpsc}};
 use tonic::transport::Server;
 use tracing::{error, info};
 use tracing_appender::{
     non_blocking::WorkerGuard,
-    rolling::{RollingFileAppender, Rotation}
+    rolling::{RollingFileAppender, Rotation},
 };
 use gemmy::core::orderbook::OrderBook;
 use gemmy::engine::services::{
@@ -31,7 +33,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
     let address = env::var("SOCKET_ADDRESS")?.parse()?;
     let file_logging = env::var("FILE_LOGGING").unwrap_or_else(|_| "false".to_string());
-    
+
     // log configuration
     let _guard;
     if file_logging == "true" {
@@ -43,10 +45,21 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             .init();
     }
 
+    // Kafka producer configuration
+    let kafka_producer: Arc<FutureProducer>  = Arc::new(ClientConfig::new()
+        .set("bootstrap.servers", env::var("KAFKA_PRODUCER")?)
+        .set("message.timeout.ms", "5000")
+        .set("acks", "all")
+        .create()
+        .map_err(|e| {
+            error!("Failed to create Kafka producer: {}", e);
+            Box::new(e) as Box<dyn Error>
+        })?);
+
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
     let orderbook = OrderBook::default();
-    let order_executor = executor(rx, orderbook);
+    let order_executor = executor(rx, orderbook, kafka_producer);
 
     // graceful shutdown configuration
     let shutdown_notify = Arc::new(Notify::new());
@@ -64,7 +77,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             shutdown_signal.await;
         });
 
-    
+
     // starting the server and handling shutdown ops
     tokio::select! {
         result = server => {
@@ -77,7 +90,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             info!("initiating server shutdown");
         },
     }
-    
+
     if let Err(e) = order_executor.await {
         error!("error while shutting down counter_processor: {}", e);
     }
