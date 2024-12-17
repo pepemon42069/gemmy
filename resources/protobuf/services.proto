@@ -10,3 +10,7 @@ service OrderDispatcher {
   rpc modify(models.ModifyLimitOrderRequest) returns (models.GenericMessage);
   rpc cancel(models.CancelLimitOrderRequest) returns (models.GenericMessage);
 }
+
+service StatStream {
+  rpc rfq(models.CreateMarketOrderRequest) returns (stream models.RfqResult);
+}

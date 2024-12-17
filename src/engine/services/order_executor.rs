@@ -4,15 +4,16 @@ use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
 use crate::core::orderbook::OrderBook;
 
-pub fn executor(rx: Receiver<Operation>, mut orderbook: OrderBook, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
+pub fn executor(rx: Receiver<Operation>, mut orderbook: Arc<RwLock<OrderBook>>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
     let mut rx = rx;
     tokio::spawn(async move {
         while let Some(order) = rx.recv().await {
-            let result = orderbook.execute(order);
+            let result = orderbook.write().await.execute(order);
             tokio::spawn(send_to_kafka(result, Arc::clone(&kafka_producer)));
         }
     })
@@ -38,7 +39,7 @@ fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
         ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), 1),
         ProtoBufResult::PartialFill(partial_fill_order) => (partial_fill_order.encode_to_vec(), 2),
         ProtoBufResult::CancelModify(cancel_modify_order) => (cancel_modify_order.encode_to_vec(), 3),
-        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), 4),
+        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), 4)
     };
     encoded_data.push(status);
     encoded_data
