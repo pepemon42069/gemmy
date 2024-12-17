@@ -15,6 +15,13 @@ enum OrderStatus {
   Cancelled = 4;
 }
 
+enum RfqStatus {
+  CompleteFill = 0;
+  PartialFill = 1;
+  ConvertLimit = 2;
+  NotPossible = 3;
+}
+
 message FillOrderData {
   bytes order_id = 1;
   bytes matched_order_id = 2;
@@ -49,6 +56,12 @@ message CancelModifyOrder {
 
 message GenericMessage {
   string message = 1;
+}
+
+message RfqResult {
+  RfqStatus status = 1;
+  uint64 price = 2;
+  uint64 quantity = 3;
 }
 
 message CreateLimitOrderRequest {

@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::protobuf::models::{
-    CancelModifyOrder, CreateOrder, GenericMessage, FillOrder, FillOrderData, PartialFillOrder
-};
+use crate::protobuf::models::{CancelModifyOrder, CreateOrder, GenericMessage, FillOrder, FillOrderData, PartialFillOrder, RfqResult};
 
 /// Side, as the name indicates is used to represent a side of the orderbook.
 /// The traits Serialize, Deserialize are implemented to broaden its utility.
@@ -69,6 +67,49 @@ pub enum ExecutionResult {
     Cancelled(u128),
     /// This is used to represent any failure scenario in operation execution.
     Failed(String),
+}
+
+#[derive(Debug)]
+pub enum RfqStatus {
+    CompleteFill(u64),
+    PartialFillAndLimitPlaced(u64, u64),
+    ConvertToLimit(u64, u64),
+    NotPossible
+}
+
+impl RfqStatus {
+    pub fn to_protobuf(&self) -> RfqResult {
+        match self {
+            RfqStatus::CompleteFill(price) => {
+                RfqResult {
+                    status: 0,
+                    price: *price,
+                    quantity: 0,
+                }
+            }
+            RfqStatus::PartialFillAndLimitPlaced(price, remaining_quantity) => {
+                RfqResult {
+                    status: 1,
+                    price: *price,
+                    quantity: *remaining_quantity,
+                }
+            }
+            RfqStatus::ConvertToLimit(price, quantity) => {
+                RfqResult {
+                    status: 2,
+                    price: *price,
+                    quantity: *quantity,
+                }
+            }
+            RfqStatus::NotPossible => {
+                RfqResult {
+                    status: 3,
+                    price: 0,
+                    quantity: 0,
+                }
+            }
+        }
+    } 
 }
 
 /// This represents the result of a modify operation for an existing limit order.

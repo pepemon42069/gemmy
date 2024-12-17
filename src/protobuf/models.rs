@@ -54,6 +54,15 @@ pub struct GenericMessage {
     pub message: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct RfqResult {
+    #[prost(enumeration = "RfqStatus", tag = "1")]
+    pub status: i32,
+    #[prost(uint64, tag = "2")]
+    pub price: u64,
+    #[prost(uint64, tag = "3")]
+    pub quantity: u64,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CreateLimitOrderRequest {
     #[prost(uint64, tag = "1")]
     pub price: u64,
@@ -142,6 +151,38 @@ impl OrderStatus {
             "PartiallyFilled" => Some(Self::PartiallyFilled),
             "Modified" => Some(Self::Modified),
             "Cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum RfqStatus {
+    CompleteFill = 0,
+    PartialFill = 1,
+    ConvertLimit = 2,
+    NotPossible = 3,
+}
+impl RfqStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::CompleteFill => "CompleteFill",
+            Self::PartialFill => "PartialFill",
+            Self::ConvertLimit => "ConvertLimit",
+            Self::NotPossible => "NotPossible",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "CompleteFill" => Some(Self::CompleteFill),
+            "PartialFill" => Some(Self::PartialFill),
+            "ConvertLimit" => Some(Self::ConvertLimit),
+            "NotPossible" => Some(Self::NotPossible),
             _ => None,
         }
     }

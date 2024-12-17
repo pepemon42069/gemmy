@@ -1,6 +1,7 @@
 use std::{env, error::Error, sync::Arc};
 use dotenv::dotenv;
 use tokio::{signal, sync::{Notify, mpsc}};
+use tokio::sync::RwLock;
 use tonic::transport::Server;
 use tracing::{error, info};
 use tracing_appender::{
@@ -12,6 +13,7 @@ use gemmy::engine::services::{
     order_dispatcher::OrderDispatchService
 };
 use gemmy::engine::services::order_executor::executor;
+use gemmy::engine::services::stat_streamer::StatStreamer;
 
 fn configure_logging() -> Arc<WorkerGuard> {
     let file_appender = RollingFileAppender::new(
@@ -45,7 +47,10 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
-    let orderbook = OrderBook::default();
+    
+    let orderbook = Arc::new(RwLock::new(OrderBook::default()));
+    let orderbook_clone = Arc::clone(&orderbook);
+    
     let order_executor = executor(rx, orderbook);
 
     // graceful shutdown configuration
@@ -60,10 +65,10 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     // service configuration
     let server = Server::builder()
         .add_service(OrderDispatchService::create(tx))
+        .add_service(StatStreamer::create(10, 10, orderbook_clone))
         .serve_with_shutdown(address, async {
             shutdown_signal.await;
         });
-
     
     // starting the server and handling shutdown ops
     tokio::select! {

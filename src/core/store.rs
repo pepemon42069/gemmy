@@ -2,7 +2,7 @@ use super::models::{LimitOrder, Side};
 use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// This struct represents a store for our order data.
 /// This is done primarily to easily retrieve the order data via a hash map.
 /// We also pre-allocate the entire memory needed to store the order data to save reallocation calls.
