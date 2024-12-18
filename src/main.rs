@@ -1,19 +1,20 @@
 use std::{env, error::Error, sync::Arc};
+use std::time::Duration;
 use dotenv::dotenv;
 use rdkafka::ClientConfig;
 use rdkafka::producer::FutureProducer;
 use tokio::{signal, sync::{Notify, mpsc}};
-use tokio::sync::RwLock;
+use tokio::time::sleep;
 use tonic::transport::Server;
 use tracing::{error, info};
 use tracing_appender::{
     non_blocking::WorkerGuard,
     rolling::{RollingFileAppender, Rotation},
 };
-use gemmy::core::orderbook::OrderBook;
 use gemmy::engine::services::{
     order_dispatcher::OrderDispatchService
 };
+use gemmy::engine::services::manager::Manager;
 use gemmy::engine::services::order_executor::executor;
 use gemmy::engine::services::stat_streamer::StatStreamer;
 
@@ -60,27 +61,48 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
-
-    let orderbook = Arc::new(RwLock::new(OrderBook::default()));
-    let orderbook_clone = Arc::clone(&orderbook);
-
-    let order_executor = executor(rx, orderbook, kafka_producer);
-
-    // graceful shutdown configuration
     let shutdown_notify = Arc::new(Notify::new());
-    let shutdown_notify_clone = Arc::clone(&shutdown_notify);
-    let shutdown_signal = async {
-        signal::ctrl_c().await.expect("failed to listen for shutdown signal");
-        info!("shutdown signal received");
-        shutdown_notify.notify_waiters();
+
+    let manager = Arc::new(Manager::new());
+    let writer = Arc::clone(&manager);
+    let reader = Arc::clone(&manager);
+
+    let order_executor = executor(rx, writer, kafka_producer);
+
+    let snapshot_task = {
+        let manager = Arc::clone(&manager);
+        let shutdown_notify = Arc::clone(&shutdown_notify);
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = shutdown_notify.notified() => {
+                        info!("shutting down snapshot task");
+                        break;
+                    },
+                    _ = sleep(Duration::from_secs(1)) => {
+                        manager.snapshot();
+                        // info!("updated snapshot");
+                    }
+                }
+            }
+        })
     };
 
+    // graceful shutdown task
+    let shutdown_notify_task_ref = Arc::clone(&shutdown_notify);
+    tokio::spawn(async move {
+        signal::ctrl_c().await.expect("failed to listen for shutdown signal");
+        info!("shutdown signal received");
+        shutdown_notify_task_ref.notify_waiters();
+    });
+
+    let shutdown_notify_clone = Arc::clone(&shutdown_notify);
     // service configuration
     let server = Server::builder()
-        .add_service(OrderDispatchService::create(tx))
-        .add_service(StatStreamer::create(10, 10, orderbook_clone))
+        .add_service(OrderDispatchService::create_no_interceptor(tx))
+        .add_service(StatStreamer::create(10, 10, reader))
         .serve_with_shutdown(address, async {
-            shutdown_signal.await;
+            shutdown_notify_clone.notified().await;
         });
 
     // starting the server and handling shutdown ops
@@ -91,13 +113,17 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             }
             info!("started gRPC server at: {}", address);
         },
-        _ = shutdown_notify_clone.notified() => {
+        _ = shutdown_notify.notified() => {
             info!("initiating server shutdown");
         },
     }
 
     if let Err(e) = order_executor.await {
-        error!("error while shutting down counter_processor: {}", e);
+        error!("error while shutting down order_executor: {}", e);
+    }
+
+    if let Err(e) = snapshot_task.await {
+        error!("error while shutting down snapshot_task: {}", e);
     }
 
     info!("gRPC server stopped gracefully");

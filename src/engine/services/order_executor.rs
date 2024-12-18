@@ -4,16 +4,15 @@ use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use tokio::sync::mpsc::Receiver;
-use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
-use crate::core::orderbook::OrderBook;
+use crate::engine::services::manager::Manager;
 
-pub fn executor(rx: Receiver<Operation>, orderbook: Arc<RwLock<OrderBook>>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
+pub fn executor(rx: Receiver<Operation>, manager: Arc<Manager>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
     let mut rx = rx;
     tokio::spawn(async move {
         while let Some(order) = rx.recv().await {
-            let result = orderbook.write().await.execute(order);
+            let result = unsafe { (*manager.get_primary()).execute(order) };
             tokio::spawn(send_to_kafka(result, Arc::clone(&kafka_producer)));
         }
     })

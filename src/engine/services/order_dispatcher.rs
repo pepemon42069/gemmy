@@ -23,6 +23,12 @@ pub struct OrderDispatchService {
 }
 
 impl OrderDispatchService {
+    
+    pub fn create_no_interceptor(
+        tx: mpsc::Sender<Operation>) -> OrderDispatcherServer<OrderDispatchService> {
+        OrderDispatcherServer::new(OrderDispatchService { tx })
+    }
+    
     pub fn create(tx: mpsc::Sender<Operation>) -> DispatchService {
         OrderDispatcherServer::with_interceptor(
             OrderDispatchService { tx }, 
@@ -81,7 +87,7 @@ impl OrderDispatchService {
     }
 
     async fn execute(&self, payload: Operation) -> Result<Response<GenericMessage>, Status> {
-        info!("dispatching message: {:?}", payload);
+        // info!("dispatching message: {:?}", payload);
         match self.tx.send(payload).await {
             Ok(_) => (),
             Err(e) => {
