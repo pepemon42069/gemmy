@@ -4,19 +4,61 @@ use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use tokio::sync::mpsc::Receiver;
-use tokio::sync::RwLock;
+use tokio::sync::Notify;
 use tokio::task::JoinHandle;
+use tracing::info;
 use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
-use crate::core::orderbook::OrderBook;
+use crate::engine::services::manager::Manager;
 
-pub fn executor(rx: Receiver<Operation>, orderbook: Arc<RwLock<OrderBook>>, kafka_producer: Arc<FutureProducer>) -> JoinHandle<()> {
+const BATCH_SIZE: usize = 10000;
+const BATCH_TIMEOUT: Duration = Duration::from_millis(250);
+
+pub fn executor(
+    rx: Receiver<Operation>, 
+    manager: Arc<Manager>, 
+    kafka_producer: Arc<FutureProducer>, 
+    shutdown_notify: Arc<Notify>) -> JoinHandle<()> {
     let mut rx = rx;
     tokio::spawn(async move {
-        while let Some(order) = rx.recv().await {
-            let result = orderbook.write().await.execute(order);
-            tokio::spawn(send_to_kafka(result, Arc::clone(&kafka_producer)));
+        let mut batch = Vec::with_capacity(BATCH_SIZE);
+        let mut batch_timer = tokio::time::interval(BATCH_TIMEOUT);
+        loop {
+            tokio::select! {
+                Some(order) = rx.recv() => {
+                    batch.push(order);
+                    if batch.len() >= BATCH_SIZE {
+                        process_batch(&batch, &manager, &kafka_producer).await;
+                        batch.clear();
+                    }
+                }
+                _ = batch_timer.tick() => {
+                    if !batch.is_empty() {
+                        process_batch(&batch, &manager, &kafka_producer).await;
+                        batch.clear();
+                    }
+                }
+                _ = shutdown_notify.notified() => {
+                    info!("shutting down executor");
+                    break;
+                }
+            }
         }
     })
+}
+
+async fn process_batch(
+    batch: &[Operation], 
+    manager: &Arc<Manager>, 
+    kafka_producer: &Arc<FutureProducer>) {
+    let primary = manager.get_primary();
+    if primary.is_null() {
+        eprintln!("Error: primary order book pointer is null");
+        return;
+    }
+    for order in batch {
+        let result = unsafe { (*primary).execute(order.clone()) };
+        tokio::spawn(send_to_kafka(result, Arc::clone(&kafka_producer)));
+    }
 }
 
 async fn send_to_kafka(execution_result: ExecutionResult, kafka_producer: Arc<FutureProducer>) {
