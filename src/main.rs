@@ -11,9 +11,7 @@ use tracing_appender::{
     non_blocking::WorkerGuard,
     rolling::{RollingFileAppender, Rotation},
 };
-use gemmy::engine::services::{
-    order_dispatcher::OrderDispatchService
-};
+use gemmy::engine::services::order_dispatcher::OrderDispatchService;
 use gemmy::engine::services::manager::Manager;
 use gemmy::engine::services::order_executor::executor;
 use gemmy::engine::services::stat_streamer::StatStreamer;
@@ -67,19 +65,19 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let writer = Arc::clone(&manager);
     let reader = Arc::clone(&manager);
 
-    let order_executor = executor(rx, writer, kafka_producer);
+    let order_executor = executor(rx, writer, kafka_producer, Arc::clone(&shutdown_notify));
 
     let snapshot_task = {
         let manager = Arc::clone(&manager);
-        let shutdown_notify = Arc::clone(&shutdown_notify);
+        let shutdown_notify_clone = Arc::clone(&shutdown_notify);
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    _ = shutdown_notify.notified() => {
+                    _ = shutdown_notify_clone.notified() => {
                         info!("shutting down snapshot task");
                         break;
                     },
-                    _ = sleep(Duration::from_secs(1)) => {
+                    _ = sleep(Duration::from_millis(250)) => {
                         manager.snapshot();
                         // info!("updated snapshot");
                     }
@@ -89,20 +87,22 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // graceful shutdown task
-    let shutdown_notify_task_ref = Arc::clone(&shutdown_notify);
-    tokio::spawn(async move {
-        signal::ctrl_c().await.expect("failed to listen for shutdown signal");
-        info!("shutdown signal received");
-        shutdown_notify_task_ref.notify_waiters();
-    });
+    let shutdown_task = {
+        let shutdown_notify_task_ref = Arc::clone(&shutdown_notify);
+        tokio::spawn(async move {
+            signal::ctrl_c().await.expect("failed to listen for shutdown signal");
+            info!("shutdown signal received");
+            shutdown_notify_task_ref.notify_waiters();
+        })
+    };
 
-    let shutdown_notify_clone = Arc::clone(&shutdown_notify);
     // service configuration
     let server = Server::builder()
         .add_service(OrderDispatchService::create_no_interceptor(tx))
         .add_service(StatStreamer::create(10, 10, reader))
         .serve_with_shutdown(address, async {
-            shutdown_notify_clone.notified().await;
+            shutdown_task.await.expect("failed to shut down");
+            info!("shutdown complete");
         });
 
     // starting the server and handling shutdown ops
