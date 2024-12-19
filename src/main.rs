@@ -131,8 +131,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         error!("error while shutting down snapshot_task: {}", e);
     }
 
-
-    // This is a test commit to check signing
     info!("gRPC server stopped gracefully");
 
     Ok(())
