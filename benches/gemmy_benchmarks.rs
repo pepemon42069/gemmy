@@ -64,7 +64,7 @@ fn load_operations(path: &str) -> Vec<Operation> {
                 operations.push(Operation::Limit(LimitOrder::new(id, price, quantity, side)));
                 id += 1;
             }
-            Err(e) => println!("Error parsing line: {}", e),
+            Err(e) => eprintln!("Error parsing line: {}", e),
         }
     }
     operations

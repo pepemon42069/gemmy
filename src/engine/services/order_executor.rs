@@ -1,23 +1,24 @@
-use std::sync::Arc;
-use std::time::Duration;
+use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
+use crate::engine::services::manager::Manager;
 use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-use tracing::info;
-use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
-use crate::engine::services::manager::Manager;
+use tracing::{info, error};
 
 const BATCH_SIZE: usize = 10000;
 const BATCH_TIMEOUT: Duration = Duration::from_millis(250);
 
 pub fn executor(
-    rx: Receiver<Operation>, 
-    manager: Arc<Manager>, 
-    kafka_producer: Arc<FutureProducer>, 
-    shutdown_notify: Arc<Notify>) -> JoinHandle<()> {
+    rx: Receiver<Operation>,
+    manager: Arc<Manager>,
+    kafka_producer: Arc<FutureProducer>,
+    shutdown_notify: Arc<Notify>,
+) -> JoinHandle<()> {
     let mut rx = rx;
     tokio::spawn(async move {
         let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -47,12 +48,13 @@ pub fn executor(
 }
 
 async fn process_batch(
-    batch: &[Operation], 
-    manager: &Arc<Manager>, 
-    kafka_producer: &Arc<FutureProducer>) {
+    batch: &[Operation],
+    manager: &Arc<Manager>,
+    kafka_producer: &Arc<FutureProducer>,
+) {
     let primary = manager.get_primary();
     if primary.is_null() {
-        eprintln!("Error: primary order book pointer is null");
+        error!("Error: primary order book pointer is null");
         return;
     }
     for order in batch {
@@ -65,12 +67,15 @@ async fn send_to_kafka(execution_result: ExecutionResult, kafka_producer: Arc<Fu
     let protobuf = execution_result.to_protobuf();
     let encoded_data = encode_protobuf(protobuf);
     let delivery_result = kafka_producer
-        .send(FutureRecord::<(), Vec<u8>>::to("order-topic")
-                  .payload(&encoded_data), Timeout::After(Duration::new(5, 0))).await;
+        .send(
+            FutureRecord::<(), Vec<u8>>::to("order-topic").payload(&encoded_data),
+            Timeout::After(Duration::new(5, 0)),
+        )
+        .await;
     match delivery_result {
-        Ok(_) => println!("Successfully sent message"),
+        Ok(_) => info!("Successfully sent message"),
         Err((e, _)) => {
-            println!("Error sending message: {:?}", e);
+            error!("Error sending message: {:?}", e);
         }
     }
 }
@@ -80,8 +85,10 @@ fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
         ProtoBufResult::Create(create_order) => (create_order.encode_to_vec(), 0),
         ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), 1),
         ProtoBufResult::PartialFill(partial_fill_order) => (partial_fill_order.encode_to_vec(), 2),
-        ProtoBufResult::CancelModify(cancel_modify_order) => (cancel_modify_order.encode_to_vec(), 3),
-        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), 4)
+        ProtoBufResult::CancelModify(cancel_modify_order) => {
+            (cancel_modify_order.encode_to_vec(), 3)
+        }
+        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), 4),
     };
     encoded_data.push(status);
     encoded_data

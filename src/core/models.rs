@@ -1,6 +1,9 @@
+use crate::protobuf::models::{
+    CancelModifyOrder, CreateOrder, FillOrder, FillOrderData, GenericMessage, PartialFillOrder,
+    RfqResult,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::protobuf::models::{CancelModifyOrder, CreateOrder, GenericMessage, FillOrder, FillOrderData, PartialFillOrder, RfqResult};
 
 /// Side, as the name indicates is used to represent a side of the orderbook.
 /// The traits Serialize, Deserialize are implemented to broaden its utility.
@@ -14,10 +17,10 @@ pub enum Side {
 
 impl From<i32> for Side {
     fn from(value: i32) -> Self {
-        match value { 
-            0 => Side::Bid, 
-            1 => Side::Ask, 
-            _ => panic!("invalid side")
+        match value {
+            0 => Side::Bid,
+            1 => Side::Ask,
+            _ => panic!("invalid side"),
         }
     }
 }
@@ -74,42 +77,34 @@ pub enum RfqStatus {
     CompleteFill(u64),
     PartialFillAndLimitPlaced(u64, u64),
     ConvertToLimit(u64, u64),
-    NotPossible
+    NotPossible,
 }
 
 impl RfqStatus {
     pub fn to_protobuf(&self) -> RfqResult {
         match self {
-            RfqStatus::CompleteFill(price) => {
-                RfqResult {
-                    status: 0,
-                    price: *price,
-                    quantity: 0,
-                }
-            }
-            RfqStatus::PartialFillAndLimitPlaced(price, remaining_quantity) => {
-                RfqResult {
-                    status: 1,
-                    price: *price,
-                    quantity: *remaining_quantity,
-                }
-            }
-            RfqStatus::ConvertToLimit(price, quantity) => {
-                RfqResult {
-                    status: 2,
-                    price: *price,
-                    quantity: *quantity,
-                }
-            }
-            RfqStatus::NotPossible => {
-                RfqResult {
-                    status: 3,
-                    price: 0,
-                    quantity: 0,
-                }
-            }
+            RfqStatus::CompleteFill(price) => RfqResult {
+                status: 0,
+                price: *price,
+                quantity: 0,
+            },
+            RfqStatus::PartialFillAndLimitPlaced(price, remaining_quantity) => RfqResult {
+                status: 1,
+                price: *price,
+                quantity: *remaining_quantity,
+            },
+            RfqStatus::ConvertToLimit(price, quantity) => RfqResult {
+                status: 2,
+                price: *price,
+                quantity: *quantity,
+            },
+            RfqStatus::NotPossible => RfqResult {
+                status: 3,
+                price: 0,
+                quantity: 0,
+            },
         }
-    } 
+    }
 }
 
 /// This represents the result of a modify operation for an existing limit order.
@@ -194,7 +189,7 @@ impl LimitOrder {
         self.quantity = quantity;
     }
 
-    fn to_create_order_proto(&self) -> CreateOrder {
+    fn to_create_order_proto(self) -> CreateOrder {
         CreateOrder {
             status: 0,
             order_id: self.id.to_be_bytes().to_vec(),
@@ -287,7 +282,7 @@ pub struct FillMetaData {
 }
 
 impl FillMetaData {
-    fn to_fill_order_data_proto(&self) -> FillOrderData {
+    fn to_fill_order_data_proto(self) -> FillOrderData {
         FillOrderData {
             order_id: self.order_id.to_be_bytes().to_vec(),
             matched_order_id: self.matched_order_id.to_be_bytes().to_vec(),
@@ -336,29 +331,29 @@ impl ProtoBuf for FillResult {
     fn to_protobuf(&self) -> ProtoBufResult {
         match self {
             FillResult::Created(order) => ProtoBufResult::Create(order.to_create_order_proto()),
-            FillResult::Filled(order_fills) => ProtoBufResult::Fill(
-                FillOrder {
-                    status: 1,
-                    filled_orders: order_fills.iter()
-                        .map(|fill_data| fill_data.to_fill_order_data_proto())
-                        .collect()
-                }
-            ),
-            FillResult::PartiallyFilled(order, order_fills) => ProtoBufResult::PartialFill(
-                PartialFillOrder {
+            FillResult::Filled(order_fills) => ProtoBufResult::Fill(FillOrder {
+                status: 1,
+                filled_orders: order_fills
+                    .iter()
+                    .map(|fill_data| fill_data.to_fill_order_data_proto())
+                    .collect(),
+            }),
+            FillResult::PartiallyFilled(order, order_fills) => {
+                ProtoBufResult::PartialFill(PartialFillOrder {
                     status: 2,
                     partial_create: Some(order.to_create_order_proto()),
-                    partial_fills: Some(
-                        FillOrder {
-                            status: 2,
-                            filled_orders: order_fills.iter()
-                                .map(|fill_data| fill_data.to_fill_order_data_proto())
-                                .collect()
-                        }
-                    )
-                }
-            ),
-            FillResult::Failed => ProtoBufResult::Failed(GenericMessage { message: "failed to place order".to_string() })
+                    partial_fills: Some(FillOrder {
+                        status: 2,
+                        filled_orders: order_fills
+                            .iter()
+                            .map(|fill_data| fill_data.to_fill_order_data_proto())
+                            .collect(),
+                    }),
+                })
+            }
+            FillResult::Failed => ProtoBufResult::Failed(GenericMessage {
+                message: "failed to place order".to_string(),
+            }),
         }
     }
 }
@@ -367,12 +362,13 @@ impl ProtoBuf for ModifyResult {
     fn to_protobuf(&self) -> ProtoBufResult {
         match self {
             ModifyResult::Created(fill_result) => fill_result.to_protobuf(),
-            ModifyResult::Modified(id) => ProtoBufResult::CancelModify(
-                CancelModifyOrder {
-                    status: 3,
-                    order_id: id.to_be_bytes().to_vec()
-                }),
-            ModifyResult::Failed => ProtoBufResult::Failed(GenericMessage { message: "failed to modify order".to_string() })
+            ModifyResult::Modified(id) => ProtoBufResult::CancelModify(CancelModifyOrder {
+                status: 3,
+                order_id: id.to_be_bytes().to_vec(),
+            }),
+            ModifyResult::Failed => ProtoBufResult::Failed(GenericMessage {
+                message: "failed to modify order".to_string(),
+            }),
         }
     }
 }
@@ -382,12 +378,13 @@ impl ProtoBuf for ExecutionResult {
         match self {
             ExecutionResult::Executed(fill_result) => fill_result.to_protobuf(),
             ExecutionResult::Modified(modify_result) => modify_result.to_protobuf(),
-            ExecutionResult::Cancelled(id) => ProtoBufResult::CancelModify(
-                CancelModifyOrder {
-                    status: 4,
-                    order_id: id.to_be_bytes().to_vec()
-                }),
-            ExecutionResult::Failed(message) => ProtoBufResult::Failed(GenericMessage { message: message.to_string() })
+            ExecutionResult::Cancelled(id) => ProtoBufResult::CancelModify(CancelModifyOrder {
+                status: 4,
+                order_id: id.to_be_bytes().to_vec(),
+            }),
+            ExecutionResult::Failed(message) => ProtoBufResult::Failed(GenericMessage {
+                message: message.to_string(),
+            }),
         }
     }
 }

@@ -1,29 +1,28 @@
-use std::{env, error::Error, sync::Arc};
-use std::time::Duration;
 use dotenv::dotenv;
-use rdkafka::ClientConfig;
+use gemmy::engine::services::{
+    manager::Manager, order_dispatcher::OrderDispatchService, order_executor::executor,
+    stat_streamer::StatStreamer,
+};
 use rdkafka::producer::FutureProducer;
-use tokio::{signal, sync::{Notify, mpsc}};
+use rdkafka::ClientConfig;
+use std::time::Duration;
+use std::{env, error::Error, sync::Arc};
 use tokio::time::sleep;
+use tokio::{
+    signal,
+    sync::{mpsc, Notify},
+};
 use tonic::transport::Server;
 use tracing::{error, info};
 use tracing_appender::{
     non_blocking::WorkerGuard,
     rolling::{RollingFileAppender, Rotation},
 };
-use gemmy::engine::services::{
-    order_dispatcher::OrderDispatchService,
-    manager::Manager,
-    order_executor::executor,
-    stat_streamer::StatStreamer,
-};
 
 fn configure_logging(enable_file_log: bool) -> Option<Arc<WorkerGuard>> {
     if enable_file_log {
-        let file_appender = RollingFileAppender::new(
-            Rotation::DAILY, "log", "gemmy.log");
-        let (file_writer, guard) = 
-            tracing_appender::non_blocking(file_appender);
+        let file_appender = RollingFileAppender::new(Rotation::DAILY, "log", "gemmy.log");
+        let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
         tracing_subscriber::fmt()
             .with_ansi(false)
             .with_max_level(tracing::Level::INFO)
@@ -50,15 +49,17 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let _guard = configure_logging(enable_file_log);
 
     // Kafka producer configuration
-    let kafka_producer: Arc<FutureProducer>  = Arc::new(ClientConfig::new()
-        .set("bootstrap.servers", env::var("KAFKA_PRODUCER")?)
-        .set("message.timeout.ms", "5000")
-        .set("acks", "all")
-        .create()
-        .map_err(|e| {
-            error!("Failed to create Kafka producer: {}", e);
-            Box::new(e) as Box<dyn Error>
-        })?);
+    let kafka_producer: Arc<FutureProducer> = Arc::new(
+        ClientConfig::new()
+            .set("bootstrap.servers", env::var("KAFKA_PRODUCER")?)
+            .set("message.timeout.ms", "5000")
+            .set("acks", "all")
+            .create()
+            .map_err(|e| {
+                error!("Failed to create Kafka producer: {}", e);
+                Box::new(e) as Box<dyn Error>
+            })?,
+    );
 
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
@@ -82,7 +83,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                     },
                     _ = sleep(Duration::from_millis(250)) => {
                         manager.snapshot();
-                        // info!("updated snapshot");
                     }
                 }
             }
@@ -93,7 +93,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let shutdown_task = {
         let shutdown_notify_task_ref = Arc::clone(&shutdown_notify);
         tokio::spawn(async move {
-            signal::ctrl_c().await.expect("failed to listen for shutdown signal");
+            signal::ctrl_c()
+                .await
+                .expect("failed to listen for shutdown signal");
             info!("shutdown signal received");
             shutdown_notify_task_ref.notify_waiters();
         })

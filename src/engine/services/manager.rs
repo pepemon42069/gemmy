@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicPtr, Ordering};
 use crate::core::orderbook::OrderBook;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 pub struct Manager {
     primary: AtomicPtr<OrderBook>,
@@ -53,10 +53,16 @@ mod tests {
         let manager = Manager::new();
         let operation = Operation::Limit(LimitOrder::new(1, 100, 100, Side::Bid));
         let primary = manager.get_primary();
-        unsafe { (*primary).execute(operation); }
-        unsafe { (*primary).execute(operation); }
+        unsafe {
+            (*primary).execute(operation);
+        }
+        unsafe {
+            (*primary).execute(operation);
+        }
         manager.snapshot();
         let secondary = manager.get_secondary();
-        unsafe { println!("{:?}", (*secondary).depth(5)); }
+        unsafe {
+            println!("{:?}", (*secondary).depth(5));
+        }
     }
 }
