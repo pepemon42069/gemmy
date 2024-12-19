@@ -8,6 +8,8 @@ My goal with writing gemmy is to create a useful, and production ready high perf
 
 For now the work is ongoing, and the implementation is bound to be full of bugs. I will be adding more to this readme as I keep doing more.
 
+**WARNING:** This project is under active development and is bound to change a lot. 
+
 # To Dos
 
 - [ ] Add exhaustive integration tests.
