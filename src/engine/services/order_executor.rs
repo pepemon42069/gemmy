@@ -1,8 +1,7 @@
 use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
 use crate::engine::services::manager::Manager;
 use prost::Message;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use rdkafka::util::Timeout;
+use rdkafka::{util::Timeout, producer::{FutureProducer, FutureRecord}};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
