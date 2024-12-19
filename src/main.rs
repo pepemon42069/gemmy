@@ -11,21 +11,32 @@ use tracing_appender::{
     non_blocking::WorkerGuard,
     rolling::{RollingFileAppender, Rotation},
 };
-use gemmy::engine::services::order_dispatcher::OrderDispatchService;
-use gemmy::engine::services::manager::Manager;
-use gemmy::engine::services::order_executor::executor;
-use gemmy::engine::services::stat_streamer::StatStreamer;
+use gemmy::engine::services::{
+    order_dispatcher::OrderDispatchService,
+    manager::Manager,
+    order_executor::executor,
+    stat_streamer::StatStreamer,
+};
 
-fn configure_logging() -> Arc<WorkerGuard> {
-    let file_appender = RollingFileAppender::new(
-        Rotation::DAILY, "log", "gemmy.log");
-    let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
-        .with_ansi(false)
-        .with_max_level(tracing::Level::INFO)
-        .with_writer(file_writer)
-        .init();
-    Arc::new(guard)
+fn configure_logging(enable_file_log: bool) -> Option<Arc<WorkerGuard>> {
+    if enable_file_log {
+        let file_appender = RollingFileAppender::new(
+            Rotation::DAILY, "log", "gemmy.log");
+        let (file_writer, guard) = 
+            tracing_appender::non_blocking(file_appender);
+        tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(file_writer)
+            .init();
+        Some(Arc::new(guard))
+    } else {
+        tracing_subscriber::fmt()
+            .with_ansi(true)
+            .with_max_level(tracing::Level::INFO)
+            .init();
+        None
+    }
 }
 
 #[tokio::main]
@@ -33,18 +44,10 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     // environment variables
     dotenv().ok();
     let address = env::var("SOCKET_ADDRESS")?.parse()?;
-    let file_logging = env::var("FILE_LOGGING").unwrap_or_else(|_| "false".to_string());
+    let enable_file_log = env::var("FILE_LOGGING")?.parse()?;
 
     // log configuration
-    let _guard;
-    if file_logging == "true" {
-        _guard = configure_logging();
-    } else {
-        tracing_subscriber::fmt()
-            .with_ansi(true)
-            .with_max_level(tracing::Level::INFO)
-            .init();
-    }
+    let _guard = configure_logging(enable_file_log);
 
     // Kafka producer configuration
     let kafka_producer: Arc<FutureProducer>  = Arc::new(ClientConfig::new()
