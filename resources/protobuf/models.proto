@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package models;
+
+enum OrderSide {
+  Bid = 0;
+  Ask = 1;
+}
+
+enum OrderStatus {
+  Created = 0;
+  Filled = 1;
+  PartiallyFilled = 2;
+  Modified = 3;
+  Cancelled = 4;
+}
+
+enum RfqStatus {
+  CompleteFill = 0;
+  PartialFill = 1;
+  ConvertLimit = 2;
+  NotPossible = 3;
+}
+
+message FillOrderData {
+  bytes order_id = 1;
+  bytes matched_order_id = 2;
+  OrderSide taker_side = 3;
+  uint64 price = 4;
+  uint64 amount = 5;
+}
+
+message CreateOrder {
+  OrderStatus status = 1;
+  bytes order_id = 2;
+  uint64 price = 3;
+  uint64 quantity = 4;
+  OrderSide side = 5;
+}
+
+message FillOrder {
+  OrderStatus status = 1;
+  repeated FillOrderData filled_orders = 2;
+}
+
+message PartialFillOrder {
+  OrderStatus status = 1;
+  CreateOrder partial_create = 2;
+  FillOrder partial_fills = 3;
+}
+
+message CancelModifyOrder {
+  OrderStatus status = 1;
+  bytes order_id = 2;
+}
+
+message GenericMessage {
+  string message = 1;
+}
+
+message RfqResult {
+  RfqStatus status = 1;
+  uint64 price = 2;
+  uint64 quantity = 3;
+}
+
+message CreateLimitOrderRequest {
+  uint64 price = 1;
+  uint64 quantity = 2;
+  OrderSide side = 3;
+}
+
+message CreateMarketOrderRequest {
+  uint64 quantity = 1;
+  OrderSide side = 2;
+}
+
+message ModifyLimitOrderRequest {
+  bytes order_id = 1;
+  uint64 price = 2;
+  uint64 quantity = 3;
+  OrderSide side= 4;
+}
+
+message CancelLimitOrderRequest {
+  bytes order_id = 1;
+}

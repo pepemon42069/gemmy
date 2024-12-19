@@ -1,17 +1,20 @@
-use crate::models::{
-    Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder, ModifyResult,
-    Operation, Side,
+use super::{
+    models::{
+        ProtoBuf, Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder,
+        ModifyResult, Operation, ProtoBufResult, Side
+    },
+    store::Store
 };
-use crate::store::Store;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
 use uuid::Uuid;
+use crate::core::models::RfqStatus;
 
 /// This is the core structure that is used to create an orderbook.
 /// It stores all limit order data in the form of a two BTreeMaps, each representing either side of the orderbook.
 /// The keys are prices and leaves of the tree are vector dequeues containing indices to the limit orders in store.
 /// This struct also contains the store itself, along with some metadata such as queue capacity, etc.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrderBook {
     /// A unique id assigned to the orderbook on creation. (uniqueness is not enforced in code)
     id: u128,
@@ -30,7 +33,7 @@ pub struct OrderBook {
     /// A minimum allocation capacity for vector dequeues
     queue_capacity: usize,
     /// The store for all orders.
-    order_store: Store,
+    order_store: Store
 }
 
 /// This assigns the default values for vector dequeue capacity as well as the store capacity when constructing the orderbook.
@@ -161,6 +164,10 @@ impl OrderBook {
             },
         }
     }
+    
+    pub fn execute_proto(&mut self, operation: Operation) -> ProtoBufResult {
+        self.execute(operation).to_protobuf()
+    }
 
     /// This method returns the depth of the orderbook upto specified levels.
     ///
@@ -249,7 +256,7 @@ impl OrderBook {
                     }
                     if existing_order.quantity != order.quantity {
                         existing_order.quantity = order.quantity;
-                        return ModifyResult::Modified;
+                        return ModifyResult::Modified(order.id);
                     }
                 }
             }
@@ -277,7 +284,7 @@ impl OrderBook {
                     }
                     if existing_order.quantity != order.quantity {
                         existing_order.quantity = order.quantity;
-                        return ModifyResult::Modified;
+                        return ModifyResult::Modified(order.id);
                     }
                 }
             }
@@ -673,13 +680,108 @@ impl OrderBook {
         });
         orders
     }
+    
+    fn process_price(
+        amount_spent: &mut u64,
+        remaining_quantity: &mut u64,
+        price: &u64,
+        orders: &VecDeque<usize>, 
+        store: &Store
+    ) {
+        let total_quantity: u64 = orders.iter()
+            .map(|index| store.index(*index).quantity).sum();
+        if total_quantity <= *remaining_quantity {
+            *amount_spent += *price * total_quantity;
+            *remaining_quantity -= total_quantity;
+        } else {
+            *amount_spent += *price * *remaining_quantity;
+            *remaining_quantity = 0;
+        }
+    }
+    
+    fn process_remaining_quantity(
+        amount_spent: u64,
+        remaining_quantity: u64,
+        original_quantity: u64,
+        top_price: u64
+    ) -> RfqStatus {
+        if remaining_quantity == original_quantity {
+            RfqStatus::ConvertToLimit(top_price, original_quantity)
+        } else if remaining_quantity == 0 {
+            RfqStatus::CompleteFill(amount_spent / original_quantity)
+        } else {
+            RfqStatus::PartialFillAndLimitPlaced(amount_spent / (original_quantity - remaining_quantity),remaining_quantity)
+        }
+    }
+    
+    pub fn request_for_quote(&self, market_order: MarketOrder) -> RfqStatus {
+        let quantity = market_order.quantity;
+        if quantity == 0 { return RfqStatus::NotPossible; }
+        match market_order.side {
+            Side::Bid => {
+                let min_ask = match self.min_ask {
+                    Some(ask) => ask,
+                    None => return RfqStatus::NotPossible
+                };
+                let book = &self.ask_side_book;
+                let mut remaining_quantity = quantity;
+                let mut amount_spent = 0;
+                for (price, orders) in book.iter() {
+                    if remaining_quantity == 0 {
+                        break;
+                    }
+                    Self::process_price(
+                        &mut amount_spent,
+                        &mut remaining_quantity,
+                        price,
+                        orders,
+                        &self.order_store);
+                }
+                Self::process_remaining_quantity(
+                    amount_spent,
+                    remaining_quantity,
+                    quantity,
+                    min_ask
+                )
+            }
+            Side::Ask => {
+                let max_bid = match self.max_bid {
+                    Some(bid) => bid,
+                    None => return RfqStatus::NotPossible
+                };
+                let book = &self.bid_side_book;
+                let mut remaining_quantity = quantity;
+                let mut amount_spent = 0;
+                for (price, orders) in book.iter().rev() {
+                    if remaining_quantity == 0 {
+                        break;
+                    }
+                    Self::process_price(
+                        &mut amount_spent,
+                        &mut remaining_quantity,
+                        price,
+                        orders,
+                        &self.order_store
+                    );
+                }
+                Self::process_remaining_quantity(
+                    amount_spent,
+                    remaining_quantity,
+                    quantity,
+                    max_bid
+                )
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation};
-    use crate::orderbook::{FillResult, OrderBook, Side};
-    use crate::store::Store;
+    use crate::core::{
+        models::{ExecutionResult, FillMetaData, LimitOrder, MarketOrder, Operation, FillResult, Side},
+        orderbook::OrderBook,
+        store::Store,
+    };
     use std::collections::{BTreeMap, VecDeque};
     use std::ops::Index;
 

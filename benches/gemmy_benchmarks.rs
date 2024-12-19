@@ -1,7 +1,9 @@
 use std::fs::File;
 use criterion::{criterion_group, criterion_main, Criterion};
-use gemmy::models::{LimitOrder, Operation, Side};
-use gemmy::orderbook::OrderBook;
+use gemmy::core::{
+    models::{LimitOrder, Operation, Side},
+    orderbook::OrderBook
+};
 
 fn small_limit_ladder(c: &mut Criterion) {
     c.bench_function("small limit ladder", |b| {
