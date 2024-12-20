@@ -1,1 +1,1 @@
-pub mod property_loader;
+pub mod loader;

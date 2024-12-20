@@ -1,6 +1,6 @@
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use crate::engine::constants::property_loader::LogProperties;
+use crate::engine::constants::loader::LogProperties;
 
 pub struct LogConfiguration {
     pub log_properties: LogProperties,

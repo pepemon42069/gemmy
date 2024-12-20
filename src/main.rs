@@ -11,32 +11,17 @@ use tokio::{
 };
 use tonic::transport::Server;
 use tracing::{error, info};
-use gemmy::engine::configuration::{
-    kafka::KafkaConfiguration,
-    logs::LogConfiguration
-};
-use gemmy::engine::constants::property_loader::EnvironmentProperties;
+use gemmy::engine::configuration::loader::ConfigurationLoader;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
-    // load environment variables
-    let EnvironmentProperties { 
-        server_properties, 
-        kafka_admin_properties, 
-        kafka_producer_properties, 
-        log_properties
-    } = EnvironmentProperties::load()?;
-
-    // log configuration
-    LogConfiguration::load(log_properties);
     
-    // kafka configuration & producer
-    let kafka_configuration = KafkaConfiguration { 
-        kafka_admin_properties, 
-        kafka_producer_properties 
-    };
-    let kafka_producer = Arc::new(kafka_configuration.producer()?);
-
+    let ConfigurationLoader {
+        server_configuration,
+        kafka_configuration,
+        ..
+    } = ConfigurationLoader::load()?;
+    
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
     let shutdown_notify = Arc::new(Notify::new());
@@ -45,6 +30,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let writer = Arc::clone(&manager);
     let reader = Arc::clone(&manager);
 
+    let kafka_producer = Arc::new(kafka_configuration.producer()?);
     let order_executor = executor(rx, writer, kafka_producer, Arc::clone(&shutdown_notify));
 
     let snapshot_task = {
@@ -81,7 +67,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let server = Server::builder()
         .add_service(OrderDispatchService::create_no_interceptor(tx))
         .add_service(StatStreamer::create(10, 10, reader))
-        .serve_with_shutdown(server_properties.socket_address, async {
+        .serve_with_shutdown(server_configuration.server_properties.socket_address, async {
             shutdown_task.await.expect("failed to shut down");
             info!("shutdown complete");
         });
@@ -92,7 +78,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             if let Err(e) = result {
                 error!("error while starting server: {}", e);
             }
-            info!("started gRPC server at: {}", server_properties.socket_address);
+            info!("started gRPC server at: {}", server_configuration.server_properties.socket_address);
         },
         _ = shutdown_notify.notified() => {
             info!("initiating server shutdown");
