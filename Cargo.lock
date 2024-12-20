@@ -461,7 +461,6 @@ dependencies = [
  "criterion",
  "csv",
  "dotenv",
- "log",
  "prost",
  "rdkafka",
  "serde",
