@@ -1,12 +1,9 @@
-use dotenv::dotenv;
 use gemmy::engine::services::{
     manager::Manager, order_dispatcher::OrderDispatchService, order_executor::executor,
     stat_streamer::StatStreamer,
 };
-use rdkafka::producer::FutureProducer;
-use rdkafka::ClientConfig;
 use std::time::Duration;
-use std::{env, error::Error, sync::Arc};
+use std::{error::Error, sync::Arc};
 use tokio::time::sleep;
 use tokio::{
     signal,
@@ -14,52 +11,31 @@ use tokio::{
 };
 use tonic::transport::Server;
 use tracing::{error, info};
-use tracing_appender::{
-    non_blocking::WorkerGuard,
-    rolling::{RollingFileAppender, Rotation},
+use gemmy::engine::configuration::{
+    kafka::KafkaConfiguration,
+    logs::LogConfiguration
 };
-
-fn configure_logging(enable_file_log: bool) -> Option<Arc<WorkerGuard>> {
-    if enable_file_log {
-        let file_appender = RollingFileAppender::new(Rotation::DAILY, "log", "gemmy.log");
-        let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
-        tracing_subscriber::fmt()
-            .with_ansi(false)
-            .with_max_level(tracing::Level::INFO)
-            .with_writer(file_writer)
-            .init();
-        Some(Arc::new(guard))
-    } else {
-        tracing_subscriber::fmt()
-            .with_ansi(true)
-            .with_max_level(tracing::Level::INFO)
-            .init();
-        None
-    }
-}
+use gemmy::engine::constants::property_loader::EnvironmentProperties;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
-    // environment variables
-    dotenv().ok();
-    let address = env::var("SOCKET_ADDRESS")?.parse()?;
-    let enable_file_log = env::var("FILE_LOGGING")?.parse()?;
+    // load environment variables
+    let EnvironmentProperties { 
+        server_properties, 
+        kafka_admin_properties, 
+        kafka_producer_properties, 
+        log_properties
+    } = EnvironmentProperties::load()?;
 
     // log configuration
-    let _guard = configure_logging(enable_file_log);
-
-    // Kafka producer configuration
-    let kafka_producer: Arc<FutureProducer> = Arc::new(
-        ClientConfig::new()
-            .set("bootstrap.servers", env::var("KAFKA_PRODUCER")?)
-            .set("message.timeout.ms", "5000")
-            .set("acks", "all")
-            .create()
-            .map_err(|e| {
-                error!("Failed to create Kafka producer: {}", e);
-                Box::new(e) as Box<dyn Error>
-            })?,
-    );
+    LogConfiguration::load(log_properties);
+    
+    // kafka configuration & producer
+    let kafka_configuration = KafkaConfiguration { 
+        kafka_admin_properties, 
+        kafka_producer_properties 
+    };
+    let kafka_producer = Arc::new(kafka_configuration.producer()?);
 
     // mpsc setup
     let (tx, rx) = mpsc::channel(10000);
@@ -105,7 +81,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let server = Server::builder()
         .add_service(OrderDispatchService::create_no_interceptor(tx))
         .add_service(StatStreamer::create(10, 10, reader))
-        .serve_with_shutdown(address, async {
+        .serve_with_shutdown(server_properties.socket_address, async {
             shutdown_task.await.expect("failed to shut down");
             info!("shutdown complete");
         });
@@ -116,7 +92,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             if let Err(e) = result {
                 error!("error while starting server: {}", e);
             }
-            info!("started gRPC server at: {}", address);
+            info!("started gRPC server at: {}", server_properties.socket_address);
         },
         _ = shutdown_notify.notified() => {
             info!("initiating server shutdown");
