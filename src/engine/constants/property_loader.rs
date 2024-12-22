@@ -1,9 +1,14 @@
 use std::error::Error;
 use std::net::SocketAddr;
+use std::time::Duration;
 use dotenv::dotenv;
 
 pub struct ServerProperties {
     pub socket_address: SocketAddr,
+    pub rfq_max_count: usize,
+    pub rfq_buffer_size: usize,
+    pub order_exec_batch_size: usize,
+    pub order_exec_batch_timeout: Duration,
 }
 
 pub struct KafkaAdminProperties {
@@ -32,6 +37,10 @@ impl EnvironmentProperties {
         let properties = Self {
             server_properties: ServerProperties {
                 socket_address: std::env::var("GRPC_SOCKET_ADDRESS")?.parse()?,
+                rfq_max_count: std::env::var("RFQ_MAX_COUNT")?.parse()?,
+                rfq_buffer_size: std::env::var("RFQ_BUFFER_SIZE")?.parse()?,
+                order_exec_batch_size: std::env::var("ORDER_EXEC_BATCH_SIZE")?.parse()?,
+                order_exec_batch_timeout: Duration::from_millis(std::env::var("ORDER_EXEC_BATCH_TIMEOUT")?.parse()?)
             },
             kafka_admin_properties: KafkaAdminProperties {
                 kafka_broker_address: std::env::var("KAFKA_BROKER_ADDRESS")?.parse()?

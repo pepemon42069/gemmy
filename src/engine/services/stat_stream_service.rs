@@ -1,5 +1,5 @@
 use crate::core::models::{MarketOrder, Side};
-use crate::engine::services::manager::Manager;
+use crate::engine::services::orderbook_manager_service::OrderbookManager;
 use crate::protobuf::models::{CreateMarketOrderRequest, RfqResult};
 use crate::protobuf::services::stat_stream_server::{StatStream, StatStreamServer};
 use std::sync::Arc;
@@ -9,18 +9,18 @@ use tonic::{Request, Response, Status};
 pub struct StatStreamer {
     max_quote_count: usize,
     max_buffer_size: usize,
-    manager: Arc<Manager>,
+    orderbook_manager: Arc<OrderbookManager>,
 }
 impl StatStreamer {
     pub fn create(
         max_quote_count: usize,
         max_buffer_size: usize,
-        manager: Arc<Manager>,
+        orderbook_manager: Arc<OrderbookManager>,
     ) -> StatStreamServer<StatStreamer> {
         StatStreamServer::new(StatStreamer {
             max_quote_count,
             max_buffer_size,
-            manager,
+            orderbook_manager,
         })
     }
 
@@ -42,7 +42,7 @@ impl StatStream for StatStreamer {
         let payload = Self::build_rfq_payload(request);
         let (tx, rx) = tokio::sync::mpsc::channel(self.max_buffer_size);
         let mut counter = 0;
-        let manager = Arc::clone(&self.manager);
+        let orderbook_manager = Arc::clone(&self.orderbook_manager);
         tokio::spawn(async move {
             loop {
                 if tx.is_closed() || counter >= max_quote_count {
@@ -50,7 +50,7 @@ impl StatStream for StatStreamer {
                 }
                 counter += 1;
                 let result = unsafe {
-                    (*manager.get_secondary())
+                    (*orderbook_manager.get_secondary())
                         .request_for_quote(payload)
                         .to_protobuf()
                 };

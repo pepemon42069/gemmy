@@ -1,4 +1,3 @@
-pub mod manager;
-pub mod order_dispatcher;
-pub mod order_executor;
-pub mod stat_streamer;
+pub mod orderbook_manager_service;
+pub mod order_dispatch_service;
+pub mod stat_stream_service;

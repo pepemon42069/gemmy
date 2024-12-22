@@ -1,22 +1,22 @@
 use crate::core::orderbook::OrderBook;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-pub struct Manager {
+pub struct OrderbookManager {
     primary: AtomicPtr<OrderBook>,
     secondary: AtomicPtr<OrderBook>,
 }
 
-impl Default for Manager {
+impl Default for OrderbookManager {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Manager {
-    pub fn new() -> Manager {
+impl OrderbookManager {
+    pub fn new() -> OrderbookManager {
         let primary = Box::into_raw(Box::new(OrderBook::default()));
         let secondary = Box::into_raw(Box::new(OrderBook::default()));
-        Manager {
+        OrderbookManager {
             primary: AtomicPtr::new(primary),
             secondary: AtomicPtr::new(secondary),
         }
@@ -46,21 +46,21 @@ impl Manager {
 #[cfg(test)]
 mod tests {
     use crate::core::models::{LimitOrder, Operation, Side};
-    use crate::engine::services::manager::Manager;
+    use crate::engine::services::orderbook_manager_service::OrderbookManager;
 
     #[test]
     fn it_tests_successful_snapshot() {
-        let manager = Manager::new();
+        let orderbook_manager = OrderbookManager::new();
         let operation = Operation::Limit(LimitOrder::new(1, 100, 100, Side::Bid));
-        let primary = manager.get_primary();
+        let primary = orderbook_manager.get_primary();
         unsafe {
             (*primary).execute(operation);
         }
         unsafe {
             (*primary).execute(operation);
         }
-        manager.snapshot();
-        let secondary = manager.get_secondary();
+        orderbook_manager.snapshot();
+        let secondary = orderbook_manager.get_secondary();
         unsafe {
             println!("{:?}", (*secondary).depth(5));
         }

@@ -1,96 +1,69 @@
 use gemmy::engine::services::{
-    manager::Manager, order_dispatcher::OrderDispatchService, order_executor::executor,
-    stat_streamer::StatStreamer,
+    order_dispatch_service::OrderDispatchService,
+    stat_stream_service::StatStreamer,
 };
-use std::time::Duration;
 use std::{error::Error, sync::Arc};
-use tokio::time::sleep;
-use tokio::{
-    signal,
-    sync::{mpsc, Notify},
-};
-use tonic::transport::Server;
 use tracing::{error, info};
-use gemmy::engine::configuration::loader::ConfigurationLoader;
+use gemmy::engine::configuration::configuration_loader::ConfigurationLoader;
+use gemmy::engine::state::server_state::ServerState;
+use gemmy::engine::tasks::task_manager::TaskManager;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     
+    // load configurations
     let ConfigurationLoader {
         server_configuration,
         kafka_configuration,
         ..
     } = ConfigurationLoader::load()?;
     
-    // mpsc setup
-    let (tx, rx) = mpsc::channel(10000);
-    let shutdown_notify = Arc::new(Notify::new());
+    // initialize server state
+    let state = ServerState::init(kafka_configuration)?;
+    
+    // initialize task manager and register tasks
+    let mut task_manager = TaskManager::init(
+        Arc::clone(&state.shutdown_notification), 
+        Arc::clone(&state.orderbook_manager)
+    );
 
-    let manager = Arc::new(Manager::new());
-    let writer = Arc::clone(&manager);
-    let reader = Arc::clone(&manager);
-
-    let kafka_producer = Arc::new(kafka_configuration.producer()?);
-    let order_executor = executor(rx, writer, kafka_producer, Arc::clone(&shutdown_notify));
-
-    let snapshot_task = {
-        let manager = Arc::clone(&manager);
-        let shutdown_notify_clone = Arc::clone(&shutdown_notify);
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = shutdown_notify_clone.notified() => {
-                        info!("shutting down snapshot task");
-                        break;
-                    },
-                    _ = sleep(Duration::from_millis(250)) => {
-                        manager.snapshot();
-                    }
-                }
-            }
-        })
-    };
-
-    // graceful shutdown task
-    let shutdown_task = {
-        let shutdown_notify_task_ref = Arc::clone(&shutdown_notify);
-        tokio::spawn(async move {
-            signal::ctrl_c()
-                .await
-                .expect("failed to listen for shutdown signal");
-            info!("shutdown signal received");
-            shutdown_notify_task_ref.notify_waiters();
-        })
-    };
-
-    // service configuration
-    let server = Server::builder()
-        .add_service(OrderDispatchService::create_no_interceptor(tx))
-        .add_service(StatStreamer::create(10, 10, reader))
+    // create services
+    let order_dispatcher_service = OrderDispatchService::create(
+        server_configuration.server_properties.order_exec_batch_size,
+        server_configuration.server_properties.order_exec_batch_timeout,
+        Arc::clone(&state.shutdown_notification), 
+        Arc::clone(&state.orderbook_manager), 
+        Arc::clone(&state.kafka_producer), 
+        &mut task_manager
+    );
+    
+    let stat_streamer_service = StatStreamer::create(
+        server_configuration.server_properties.rfq_max_count,
+        server_configuration.server_properties.rfq_buffer_size, 
+        Arc::clone(&state.orderbook_manager)
+    );
+    
+    // start the server thread
+    let server = tonic::transport::Server::builder()
+        .add_service(order_dispatcher_service)
+        .add_service(stat_streamer_service)
         .serve_with_shutdown(server_configuration.server_properties.socket_address, async {
-            shutdown_task.await.expect("failed to shut down");
-            info!("shutdown complete");
+            info!("successfully started gRPC server at: {}", server_configuration.server_properties.socket_address);
+            task_manager.deregister("shutdown_task").await.expect("failed to shut down server");
         });
 
-    // starting the server and handling shutdown ops
+    // handle graceful shutdown
     tokio::select! {
         result = server => {
             if let Err(e) = result {
                 error!("error while starting server: {}", e);
             }
-            info!("started gRPC server at: {}", server_configuration.server_properties.socket_address);
         },
-        _ = shutdown_notify.notified() => {
+        _ = state.shutdown_notification.notified() => {
             info!("initiating server shutdown");
+            task_manager.deregister("order_exec_task").await.expect("failed to shut down order executor task");
+            task_manager.deregister("snapshot_task").await.expect("failed to shut down snapshot task");
         },
-    }
-
-    if let Err(e) = order_executor.await {
-        error!("error while shutting down order_executor: {}", e);
-    }
-
-    if let Err(e) = snapshot_task.await {
-        error!("error while shutting down snapshot_task: {}", e);
     }
 
     info!("gRPC server stopped gracefully");

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::time::Duration;
+use rdkafka::producer::FutureProducer;
 use crate::core::models::{LimitOrder, MarketOrder, Operation, Side};
 use crate::protobuf::models::{
     CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest,
@@ -7,10 +10,14 @@ use crate::protobuf::{
     models::GenericMessage,
     services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer},
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Notify};
+use tokio::sync::mpsc::Sender;
 use tokio::time::Instant;
 use tonic::{codegen::InterceptedService, Request, Response, Status};
 use tracing::{error, info};
+use crate::engine::services::orderbook_manager_service::OrderbookManager;
+use crate::engine::tasks::order_exec_task::Executor;
+use crate::engine::tasks::task_manager::TaskManager;
 
 pub type DispatchService = InterceptedService<
     OrderDispatcherServer<OrderDispatchService>,
@@ -19,17 +26,30 @@ pub type DispatchService = InterceptedService<
 
 #[derive(Debug)]
 pub struct OrderDispatchService {
-    tx: mpsc::Sender<Operation>,
+    tx: Sender<Operation>,
 }
 
 impl OrderDispatchService {
-    pub fn create_no_interceptor(
-        tx: mpsc::Sender<Operation>,
-    ) -> OrderDispatcherServer<OrderDispatchService> {
-        OrderDispatcherServer::new(OrderDispatchService { tx })
-    }
-
-    pub fn create(tx: mpsc::Sender<Operation>) -> DispatchService {
+    pub fn create(
+        batch_size: usize,
+        batch_timeout: Duration,
+        shutdown_notification: Arc<Notify>,
+        orderbook_manager: Arc<OrderbookManager>,
+        kafka_producer: Arc<FutureProducer>,
+        task_manager: &mut TaskManager
+    ) -> DispatchService {
+        let (tx, rx) = mpsc::channel(10000);
+        task_manager.register("order_exec_task", {
+            async move {
+                Executor::new(
+                    batch_size, 
+                    batch_timeout, 
+                    shutdown_notification, 
+                    orderbook_manager, 
+                    kafka_producer, 
+                    rx).run().await;
+            }
+        });
         OrderDispatcherServer::with_interceptor(OrderDispatchService { tx }, Self::interceptor)
     }
 

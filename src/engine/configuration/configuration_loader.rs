@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::sync::Arc;
-use crate::engine::configuration::kafka::KafkaConfiguration;
-use crate::engine::configuration::logs::LogConfiguration;
-use crate::engine::configuration::server::ServerConfiguration;
-use crate::engine::constants::loader::EnvironmentProperties;
+use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
+use crate::engine::configuration::log_configuration::LogConfiguration;
+use crate::engine::configuration::server_configuration::ServerConfiguration;
+use crate::engine::constants::property_loader::EnvironmentProperties;
 
 pub struct ConfigurationLoader {
     pub server_configuration: Arc<ServerConfiguration>,

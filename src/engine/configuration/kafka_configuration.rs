@@ -1,7 +1,7 @@
 use rdkafka::ClientConfig;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::FutureProducer;
-use crate::engine::constants::loader::{KafkaAdminProperties, KafkaProducerProperties};
+use crate::engine::constants::property_loader::{KafkaAdminProperties, KafkaProducerProperties};
 
 pub struct KafkaConfiguration {
     pub kafka_admin_properties: KafkaAdminProperties,

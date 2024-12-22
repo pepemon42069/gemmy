@@ -1,4 +1,4 @@
-use crate::engine::constants::loader::ServerProperties;
+use crate::engine::constants::property_loader::ServerProperties;
 
 pub struct ServerConfiguration {
     pub server_properties: ServerProperties
