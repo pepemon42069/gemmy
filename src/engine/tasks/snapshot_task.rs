@@ -10,9 +10,6 @@ pub struct Snapshot {
     pub orderbook_manager: Arc<OrderbookManager>
 }
 
-unsafe impl Send for Snapshot {}
-unsafe impl Sync for Snapshot {}
-
 impl Snapshot {
     pub fn new(shutdown_notification: Arc<Notify>, orderbook_manager: Arc<OrderbookManager>) -> Self {
         Self {

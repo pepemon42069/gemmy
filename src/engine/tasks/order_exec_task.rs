@@ -18,9 +18,6 @@ pub struct Executor {
     pub rx: Receiver<Operation>
 }
 
-unsafe impl Send for Executor {}
-unsafe impl Sync for Executor {}
-
 impl Executor {
     pub fn new(
         batch_size: usize,

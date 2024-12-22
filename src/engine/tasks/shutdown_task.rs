@@ -7,9 +7,6 @@ pub struct Shutdown {
     pub shutdown_notification: Arc<Notify>
 }
 
-unsafe impl Send for Shutdown {}
-unsafe impl Sync for Shutdown {}
-
 impl Shutdown {
     pub fn new(shutdown_notification: Arc<Notify>) -> Self {
         Self { shutdown_notification }
