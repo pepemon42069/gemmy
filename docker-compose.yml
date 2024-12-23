@@ -1,5 +1,6 @@
 networks:
   gemmy-network:
+    external: true
     driver: bridge
 
 services:
