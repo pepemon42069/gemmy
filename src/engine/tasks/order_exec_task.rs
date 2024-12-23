@@ -6,7 +6,7 @@ use rdkafka::util::Timeout;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
-use crate::core::models::{ExecutionResult, Operation, ProtoBufResult};
+use crate::core::models::{Operation, ProtoBufResult};
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
 
 pub struct Executor {
@@ -14,6 +14,7 @@ pub struct Executor {
     pub batch_timeout: Duration,
     pub shutdown_notification: Arc<Notify>,
     pub orderbook_manager: Arc<OrderbookManager>,
+    pub kafka_topic: String,
     pub kafka_producer: Arc<FutureProducer>,
     pub rx: Receiver<Operation>
 }
@@ -24,6 +25,7 @@ impl Executor {
         batch_timeout: Duration,
         shutdown_notification: Arc<Notify>,
         orderbook_manager: Arc<OrderbookManager>,
+        kafka_topic: String,
         kafka_producer: Arc<FutureProducer>,
         rx: Receiver<Operation>
     ) -> Self {
@@ -32,6 +34,7 @@ impl Executor {
             batch_timeout,
             shutdown_notification,
             orderbook_manager,
+            kafka_topic,
             kafka_producer,
             rx
         }
@@ -45,13 +48,13 @@ impl Executor {
                 Some(order) = self.rx.recv() => {
                     batch.push(order);
                     if batch.len() >= self.batch_size {
-                        process_batch(&batch, &self.orderbook_manager, &self.kafka_producer).await;
+                        self.process_batch(&batch).await;
                         batch.clear();
                     }
                 }
                 _ = batch_timer.tick() => {
                     if !batch.is_empty() {
-                        process_batch(&batch, &self.orderbook_manager, &self.kafka_producer).await;
+                        self.process_batch(&batch).await;
                         batch.clear();
                     }
                 }
@@ -62,34 +65,33 @@ impl Executor {
             }
         }
     }
-}
 
-async fn process_batch(batch: &[Operation], manager: &Arc<OrderbookManager>, kafka_producer: &Arc<FutureProducer>) {
-    let primary = manager.get_primary();
-    if primary.is_null() {
-        error!("Error: primary order book pointer is null");
-        return;
-    }
-    for order in batch {
-        let result = unsafe { (*primary).execute(*order) };
-        tokio::spawn(send_to_kafka(result, Arc::clone(kafka_producer)));
-    }
-}
-
-async fn send_to_kafka(execution_result: ExecutionResult, kafka_producer: Arc<FutureProducer>) {
-    let protobuf = execution_result.to_protobuf();
-    let encoded_data = encode_protobuf(protobuf);
-    let delivery_result = kafka_producer
-        .send(
-            FutureRecord::<(), Vec<u8>>::to("order-topic").payload(&encoded_data),
-            Timeout::After(Duration::new(5, 0)),
-        )
-        .await;
-    match delivery_result {
-        Ok(_) => info!("Successfully sent message"),
-        Err((e, _)) => {
-            error!("Error sending message: {:?}", e);
+    async fn process_batch(&self, batch: &[Operation]) {
+        let primary = self.orderbook_manager.get_primary();
+        let mut results = vec![];
+        for order in batch {
+            results.push(unsafe { (*primary).execute(*order) });
         }
+        let kafka_producer = self.kafka_producer.clone();
+        let kafka_topic = self.kafka_topic.clone();
+        tokio::spawn(async move {
+            for result in results {
+                let protobuf = result.to_protobuf();
+                let encoded_data = encode_protobuf(protobuf);
+                let delivery_result = kafka_producer
+                    .send(
+                        FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str()).payload(&encoded_data),
+                        Timeout::After(Duration::new(5, 0)),
+                    )
+                    .await;
+                match delivery_result {
+                    Ok(_) => info!("Successfully sent message"),
+                    Err((e, _)) => {
+                        error!("Error sending message: {:?}", e);
+                    }
+                }
+            }
+        });
     }
 }
 

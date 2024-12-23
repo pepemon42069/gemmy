@@ -31,6 +31,7 @@ impl OrderDispatchService {
         batch_timeout: Duration,
         shutdown_notification: Arc<Notify>,
         orderbook_manager: Arc<OrderbookManager>,
+        kafka_topic: String,
         kafka_producer: Arc<FutureProducer>,
         task_manager: &mut TaskManager
     ) -> DispatchService {
@@ -41,8 +42,9 @@ impl OrderDispatchService {
                     batch_size, 
                     batch_timeout, 
                     shutdown_notification, 
-                    orderbook_manager, 
-                    kafka_producer, 
+                    orderbook_manager,
+                    kafka_topic,
+                    kafka_producer,
                     rx).run().await;
             }
         });
@@ -82,12 +84,10 @@ impl OrderDispatchService {
     }
 
     fn interceptor(request: Request<()>) -> Result<Request<()>, Status> {
-        let start = Instant::now();
         if let Some(token) = request.metadata().get("bearer") {
             info!("gRPC request received: {:?}", token);
         }
-        let elapsed = start.elapsed().as_micros();
-        info!("gRPC interceptor time: {}", elapsed);
+        info!("passing through interceptor");
         Ok(request)
     }
 

@@ -43,7 +43,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         server_configuration.server_properties.order_exec_batch_size,
         server_configuration.server_properties.order_exec_batch_timeout,
         Arc::clone(&state.shutdown_notification), 
-        Arc::clone(&state.orderbook_manager), 
+        Arc::clone(&state.orderbook_manager),
+        kafka_configuration.kafka_admin_properties.kafka_topic.clone(),
         Arc::clone(&state.kafka_producer), 
         &mut task_manager
     );

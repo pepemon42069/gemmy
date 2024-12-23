@@ -17,6 +17,7 @@ pub struct ServerProperties {
 
 pub struct KafkaAdminProperties {
     pub kafka_broker_address: String,
+    pub kafka_topic: String,
 }
 
 pub struct KafkaProducerProperties {
@@ -58,7 +59,8 @@ impl EnvironmentProperties {
                 orderbook_snapshot_interval: Duration::from_millis(std::env::var("ORDERBOOK_SNAPSHOT_INTERVAL_MILLIS")?.parse()?),
             },
             kafka_admin_properties: KafkaAdminProperties {
-                kafka_broker_address: std::env::var("KAFKA_BROKER_ADDRESS")?.parse()?
+                kafka_broker_address: std::env::var("KAFKA_BROKER_ADDRESS")?.parse()?,
+                kafka_topic: std::env::var("KAFKA_TOPIC")?.parse()?,
             },
             kafka_producer_properties: KafkaProducerProperties {
                 message_timeout: std::env::var("KAFKA_PRODUCER_MESSAGE_TIMEOUT_MILLIS")?.parse()?,
