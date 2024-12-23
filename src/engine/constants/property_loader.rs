@@ -18,6 +18,13 @@ pub struct KafkaAdminProperties {
 pub struct KafkaProducerProperties {
     pub message_timeout: String,
     pub acks: String,
+    pub batch_size : String,
+    pub linger_ms : String,
+    pub compression_type : String,
+    pub retries : String,
+    pub retry_backoff : String,
+    pub delivery_timeout : String,
+    pub enable_idempotence : String,
 }
 
 pub struct LogProperties {
@@ -48,6 +55,13 @@ impl EnvironmentProperties {
             kafka_producer_properties: KafkaProducerProperties {
                 message_timeout: std::env::var("KAFKA_PRODUCER_MESSAGE_TIMEOUT_MILLIS")?.parse()?,
                 acks: std::env::var("KAFKA_ACKS")?.parse()?,
+                batch_size : std::env::var("KAFKA_BATCH_SIZE")?.parse()?,
+                linger_ms : std::env::var("KAFKA_LINGER_MILLIS")?.parse()?,
+                compression_type : std::env::var("KAFKA_COMPRESSION_TYPE")?.parse()?,
+                retries : std::env::var("KAFKA_RETRIES")?.parse()?,
+                retry_backoff : std::env::var("KAFKA_RETRY_BACKOFF_MILLIS")?.parse()?,
+                delivery_timeout : std::env::var("KAFKA_DELIVERY_TIMEOUT_MILLIS")?.parse()?,
+                enable_idempotence : std::env::var("KAFKA_ENABLE_IDEMPOTENCE")?.parse()?,
             },
             log_properties: LogProperties {
                 enable_file_log: std::env::var("ENABLE_FILE_LOG")?.parse()?
