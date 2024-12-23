@@ -32,3 +32,18 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    environment:
+      - TICKER=BTCUSD
+
+  ethusd:
+    env_file: ".env"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50052:50051"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - TICKER=ETHUSD

@@ -9,6 +9,10 @@ pub struct ServerProperties {
     pub rfq_buffer_size: usize,
     pub order_exec_batch_size: usize,
     pub order_exec_batch_timeout: Duration,
+    pub orderbook_ticker: String,
+    pub orderbook_queue_capacity: usize,
+    pub orderbook_store_capacity: usize,
+    pub orderbook_snapshot_interval: Duration,
 }
 
 pub struct KafkaAdminProperties {
@@ -47,7 +51,11 @@ impl EnvironmentProperties {
                 rfq_max_count: std::env::var("RFQ_MAX_COUNT")?.parse()?,
                 rfq_buffer_size: std::env::var("RFQ_BUFFER_SIZE")?.parse()?,
                 order_exec_batch_size: std::env::var("ORDER_EXEC_BATCH_SIZE")?.parse()?,
-                order_exec_batch_timeout: Duration::from_millis(std::env::var("ORDER_EXEC_BATCH_TIMEOUT")?.parse()?)
+                order_exec_batch_timeout: Duration::from_millis(std::env::var("ORDER_EXEC_BATCH_TIMEOUT")?.parse()?),
+                orderbook_ticker: std::env::var("TICKER")?.parse()?,
+                orderbook_queue_capacity: std::env::var("ORDERBOOK_QUEUE_CAPACITY")?.parse()?,
+                orderbook_store_capacity: std::env::var("ORDERBOOK_STORE_CAPACITY")?.parse()?,
+                orderbook_snapshot_interval: Duration::from_millis(std::env::var("ORDERBOOK_SNAPSHOT_INTERVAL_MILLIS")?.parse()?),
             },
             kafka_admin_properties: KafkaAdminProperties {
                 kafka_broker_address: std::env::var("KAFKA_BROKER_ADDRESS")?.parse()?

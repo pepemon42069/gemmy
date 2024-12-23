@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -16,6 +17,7 @@ impl TaskManager {
     pub fn init(
         shutdown_notification: Arc<Notify>,
         orderbook_manager: Arc<OrderbookManager>,
+        snapshot_interval: Duration,
     ) -> Self {
         let mut task_manager = TaskManager { tasks: HashMap::new() };
         task_manager.register("shutdown_task", {
@@ -28,7 +30,7 @@ impl TaskManager {
             let shutdown_notify = Arc::clone(&shutdown_notification);
             let manager = Arc::clone(&orderbook_manager);
             async move {
-                Snapshot::new(shutdown_notify, manager).run().await;
+                Snapshot::new(shutdown_notify, manager, snapshot_interval).run().await;
             }
         });
         task_manager

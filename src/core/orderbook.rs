@@ -17,7 +17,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct OrderBook {
     /// A unique id assigned to the orderbook on creation. (uniqueness is not enforced in code)
-    id: u128,
+    id: String,
     /// Maximum bid at any given time in the orderbook.
     /// This is `None`, upon creation and is populated as soon as the first order enters the book.
     /// Unwrapping in codebase should default to `u64::MIN`
@@ -47,7 +47,7 @@ impl Default for OrderBook {
         const DEFAULT_QUEUE_CAPACITY: usize = 10;
         const DEFAULT_STORE_CAPACITY: usize = 10000;
 
-        Self::new(DEFAULT_QUEUE_CAPACITY, DEFAULT_STORE_CAPACITY)
+        Self::new(Uuid::new_v4().to_string(), DEFAULT_QUEUE_CAPACITY, DEFAULT_STORE_CAPACITY)
     }
 }
 
@@ -62,9 +62,9 @@ impl OrderBook {
     /// # Returns
     ///
     /// * An [`OrderBook`] with the specified capacities, and a `Uuid::new_v4()` based id.
-    pub fn new(queue_capacity: usize, store_capacity: usize) -> Self {
+    pub fn new(id: String, queue_capacity: usize, store_capacity: usize) -> Self {
         OrderBook {
-            id: Uuid::new_v4().as_u128(),
+            id,
             max_bid: None,
             min_ask: None,
             bid_side_book: BTreeMap::new(),
@@ -79,8 +79,8 @@ impl OrderBook {
     /// # Returns
     ///
     /// * A `u128` orderbook id.
-    pub fn get_id(&self) -> u128 {
-        self.id
+    pub fn get_id(&self) -> &String {
+        &self.id
     }
 
     /// This helps us get the maximum value of the bid side orderbook.

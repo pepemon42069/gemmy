@@ -11,6 +11,8 @@ use gemmy::engine::tasks::task_manager::TaskManager;
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     
+    info!("initiating orderbook server");
+    
     // load configurations
     let ConfigurationLoader {
         server_configuration,
@@ -18,14 +20,23 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         ..
     } = ConfigurationLoader::load()?;
     
+    info!("successfully loaded configurations: {}", 
+        server_configuration.server_properties.orderbook_ticker);
+    
     // initialize server state
-    let state = ServerState::init(kafka_configuration)?;
+    let state = ServerState::init(
+        Arc::clone(&server_configuration), 
+        Arc::clone(&kafka_configuration)
+    )?;
     
     // initialize task manager and register tasks
     let mut task_manager = TaskManager::init(
         Arc::clone(&state.shutdown_notification), 
-        Arc::clone(&state.orderbook_manager)
+        Arc::clone(&state.orderbook_manager),
+        server_configuration.server_properties.orderbook_snapshot_interval
     );
+
+    info!("successfully created and registered tasks");
 
     // create services
     let order_dispatcher_service = OrderDispatchService::create(
@@ -42,6 +53,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         server_configuration.server_properties.rfq_buffer_size, 
         Arc::clone(&state.orderbook_manager)
     );
+
+    info!("successfully created and services, starting server");
     
     // start the server thread
     let server = tonic::transport::Server::builder()

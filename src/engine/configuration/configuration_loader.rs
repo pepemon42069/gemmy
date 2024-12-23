@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use tracing::info;
 use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
 use crate::engine::configuration::log_configuration::LogConfiguration;
 use crate::engine::configuration::server_configuration::ServerConfiguration;
@@ -21,6 +22,8 @@ impl ConfigurationLoader {
             kafka_producer_properties,
             log_properties
         } = EnvironmentProperties::load()?;
+        
+        info!("successfully loaded environment properties for orderbook");
         
         // server configuration
         let server_configuration = Arc::new(ServerConfiguration::load(server_properties));
