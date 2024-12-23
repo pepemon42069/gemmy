@@ -18,7 +18,7 @@ mod integration_tests {
         let expected_depth = orderbook.depth(1);
 
         match execution_result {
-            ExecutionResult::Executed(FillResult::Created(created_order)) => {
+            ExecutionResult::Executed(FillResult::Created(created_order), ..) => {
                 let assert_order_flow = || {
                     assert_eq!(created_order, test_order);
                     assert_eq!(expected_max_bid, Some(100));
@@ -50,8 +50,8 @@ mod integration_tests {
 
         match (execution_result_1, execution_result_2) {
             (
-                ExecutionResult::Executed(FillResult::Created(created_order_1)),
-                ExecutionResult::Executed(FillResult::Created(created_order_2)),
+                ExecutionResult::Executed(FillResult::Created(created_order_1), ..),
+                ExecutionResult::Executed(FillResult::Created(created_order_2), ..),
             ) => {
                 let assert_order_flow = || {
                     assert_eq!(created_order_1, test_order_1);
@@ -82,7 +82,7 @@ mod integration_tests {
         match orderbook.execute(operation_limit_ask) {
 
             // this results in an execution result, which is creation of a limit ask order
-            ExecutionResult::Executed(FillResult::Created(created_order)) => {
+            ExecutionResult::Executed(FillResult::Created(created_order), ..) => {
                 println!("created_order: {:#?}", created_order);
 
                 // you can query the orderbook using other methods to know its state
@@ -97,7 +97,7 @@ mod integration_tests {
         let operation_market_bid = Operation::Market(order_bid);
         match orderbook.execute(operation_market_bid) {
             // this time we can see how exactly the order got matched
-            ExecutionResult::Executed(FillResult::Filled(order_fills)) => {
+            ExecutionResult::Executed(FillResult::Filled(order_fills), ..) => {
                 println!("order_fills: {:#?}", order_fills);
                 println!("depth: {:#?}",orderbook.depth(1));
             }
@@ -108,7 +108,7 @@ mod integration_tests {
         let order_bid_second = LimitOrder::new(3, 50, 100, Side::Bid);
         let operation_limit_bid = Operation::Limit(order_bid_second);
         match orderbook.execute(operation_limit_bid) {
-            ExecutionResult::Executed(FillResult::Created(created_order)) => {
+            ExecutionResult::Executed(FillResult::Created(created_order), ..) => {
                 println!("created_order: {:#?}", created_order);
                 println!("max_bid: {}", orderbook.get_max_bid().unwrap());
                 println!("depth: {:#?}",orderbook.depth(1));

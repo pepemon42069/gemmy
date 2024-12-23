@@ -16,28 +16,28 @@ pub mod order_dispatcher_server {
             &self,
             request: tonic::Request<super::super::models::CreateLimitOrderRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Response<super::super::models::StringResponse>,
             tonic::Status,
         >;
         async fn market(
             &self,
             request: tonic::Request<super::super::models::CreateMarketOrderRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Response<super::super::models::StringResponse>,
             tonic::Status,
         >;
         async fn modify(
             &self,
             request: tonic::Request<super::super::models::ModifyLimitOrderRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Response<super::super::models::StringResponse>,
             tonic::Status,
         >;
         async fn cancel(
             &self,
             request: tonic::Request<super::super::models::CancelLimitOrderRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::super::models::GenericMessage>,
+            tonic::Response<super::super::models::StringResponse>,
             tonic::Status,
         >;
     }
@@ -125,7 +125,7 @@ pub mod order_dispatcher_server {
                     > tonic::server::UnaryService<
                         super::super::models::CreateLimitOrderRequest,
                     > for limitSvc<T> {
-                        type Response = super::super::models::GenericMessage;
+                        type Response = super::super::models::StringResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -173,7 +173,7 @@ pub mod order_dispatcher_server {
                     > tonic::server::UnaryService<
                         super::super::models::CreateMarketOrderRequest,
                     > for marketSvc<T> {
-                        type Response = super::super::models::GenericMessage;
+                        type Response = super::super::models::StringResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -221,7 +221,7 @@ pub mod order_dispatcher_server {
                     > tonic::server::UnaryService<
                         super::super::models::ModifyLimitOrderRequest,
                     > for modifySvc<T> {
-                        type Response = super::super::models::GenericMessage;
+                        type Response = super::super::models::StringResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -269,7 +269,7 @@ pub mod order_dispatcher_server {
                     > tonic::server::UnaryService<
                         super::super::models::CancelLimitOrderRequest,
                     > for cancelSvc<T> {
-                        type Response = super::super::models::GenericMessage;
+                        type Response = super::super::models::StringResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,

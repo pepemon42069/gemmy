@@ -2,12 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use rdkafka::producer::FutureProducer;
 use crate::core::models::{LimitOrder, MarketOrder, Operation, Side};
-use crate::protobuf::models::{
-    CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest,
-    ModifyLimitOrderRequest,
-};
+use crate::protobuf::models::{CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest, ModifyLimitOrderRequest, StringResponse};
 use crate::protobuf::{
-    models::GenericMessage,
     services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer},
 };
 use tokio::sync::{mpsc, Notify};
@@ -95,7 +91,7 @@ impl OrderDispatchService {
         Ok(request)
     }
 
-    async fn execute(&self, payload: Operation) -> Result<Response<GenericMessage>, Status> {
+    async fn execute(&self, payload: Operation) -> Result<Response<StringResponse>, Status> {
         // info!("dispatching message: {:?}", payload);
         match self.tx.send(payload).await {
             Ok(_) => (),
@@ -104,7 +100,7 @@ impl OrderDispatchService {
                 return Err(Status::internal("internal server error"));
             }
         }
-        Ok(Response::new(GenericMessage {
+        Ok(Response::new(StringResponse {
             message: "ok".to_string(),
         }))
     }
@@ -115,28 +111,28 @@ impl OrderDispatcher for OrderDispatchService {
     async fn limit(
         &self,
         request: Request<CreateLimitOrderRequest>,
-    ) -> Result<Response<GenericMessage>, Status> {
+    ) -> Result<Response<StringResponse>, Status> {
         self.execute(Self::build_limit_payload(request)).await
     }
 
     async fn market(
         &self,
         request: Request<CreateMarketOrderRequest>,
-    ) -> Result<Response<GenericMessage>, Status> {
+    ) -> Result<Response<StringResponse>, Status> {
         self.execute(Self::build_market_payload(request)).await
     }
 
     async fn modify(
         &self,
         request: Request<ModifyLimitOrderRequest>,
-    ) -> Result<Response<GenericMessage>, Status> {
+    ) -> Result<Response<StringResponse>, Status> {
         self.execute(Self::build_modify_payload(request)).await
     }
 
     async fn cancel(
         &self,
         request: Request<CancelLimitOrderRequest>,
-    ) -> Result<Response<GenericMessage>, Status> {
+    ) -> Result<Response<StringResponse>, Status> {
         self.execute(Self::build_cancel_payload(request)).await
     }
 }

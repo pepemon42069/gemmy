@@ -36,25 +36,39 @@ message CreateOrder {
   uint64 price = 3;
   uint64 quantity = 4;
   OrderSide side = 5;
+  string symbol = 6;
+  bytes timestamp = 7;
 }
 
 message FillOrder {
   OrderStatus status = 1;
   repeated FillOrderData filled_orders = 2;
+  string symbol = 3;
+  bytes timestamp = 4;
 }
 
 message PartialFillOrder {
   OrderStatus status = 1;
   CreateOrder partial_create = 2;
   FillOrder partial_fills = 3;
+  string symbol = 4;
+  bytes timestamp = 5;
 }
 
 message CancelModifyOrder {
   OrderStatus status = 1;
   bytes order_id = 2;
+  string symbol = 3;
+  bytes timestamp = 4;
 }
 
 message GenericMessage {
+  string message = 1;
+  string symbol = 2;
+  bytes timestamp = 3;
+}
+
+message StringResponse {
   string message = 1;
 }
 

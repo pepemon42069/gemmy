@@ -6,7 +6,7 @@ use rdkafka::util::Timeout;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
-use crate::core::models::{ExecutionResult, Operation, ProtoBuf, ProtoBufResult};
+use crate::core::models::{ExecutionResult, Operation, ProtoBufResult};
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
 
 pub struct Executor {

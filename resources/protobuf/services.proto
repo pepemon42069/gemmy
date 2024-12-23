@@ -5,10 +5,10 @@ package services;
 import "models.proto";
 
 service OrderDispatcher {
-  rpc limit(models.CreateLimitOrderRequest) returns (models.GenericMessage);
-  rpc market(models.CreateMarketOrderRequest) returns (models.GenericMessage);
-  rpc modify(models.ModifyLimitOrderRequest) returns (models.GenericMessage);
-  rpc cancel(models.CancelLimitOrderRequest) returns (models.GenericMessage);
+  rpc limit(models.CreateLimitOrderRequest) returns (models.StringResponse);
+  rpc market(models.CreateMarketOrderRequest) returns (models.StringResponse);
+  rpc modify(models.ModifyLimitOrderRequest) returns (models.StringResponse);
+  rpc cancel(models.CancelLimitOrderRequest) returns (models.StringResponse);
 }
 
 service StatStream {

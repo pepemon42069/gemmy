@@ -24,6 +24,10 @@ pub struct CreateOrder {
     pub quantity: u64,
     #[prost(enumeration = "OrderSide", tag = "5")]
     pub side: i32,
+    #[prost(string, tag = "6")]
+    pub symbol: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "7")]
+    pub timestamp: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FillOrder {
@@ -31,6 +35,10 @@ pub struct FillOrder {
     pub status: i32,
     #[prost(message, repeated, tag = "2")]
     pub filled_orders: ::prost::alloc::vec::Vec<FillOrderData>,
+    #[prost(string, tag = "3")]
+    pub symbol: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "4")]
+    pub timestamp: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PartialFillOrder {
@@ -40,6 +48,10 @@ pub struct PartialFillOrder {
     pub partial_create: ::core::option::Option<CreateOrder>,
     #[prost(message, optional, tag = "3")]
     pub partial_fills: ::core::option::Option<FillOrder>,
+    #[prost(string, tag = "4")]
+    pub symbol: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "5")]
+    pub timestamp: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelModifyOrder {
@@ -47,9 +59,22 @@ pub struct CancelModifyOrder {
     pub status: i32,
     #[prost(bytes = "vec", tag = "2")]
     pub order_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub symbol: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "4")]
+    pub timestamp: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenericMessage {
+    #[prost(string, tag = "1")]
+    pub message: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub symbol: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "3")]
+    pub timestamp: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StringResponse {
     #[prost(string, tag = "1")]
     pub message: ::prost::alloc::string::String,
 }
