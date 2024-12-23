@@ -18,3 +18,17 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
     volumes:
       - /var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'true'"]
+      interval: 8s
+
+  btcusd:
+    env_file: ".env"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    depends_on:
+      kafka:
+        condition: service_healthy

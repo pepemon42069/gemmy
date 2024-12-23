@@ -21,7 +21,7 @@ tracing-appender = "0.2.3"
 dotenv = "0.15.0"
 
 # kafka
-rdkafka = { version = "0.37.0", features = ["cmake-build"] }
+rdkafka = { version = "0.37.0"}
 
 [dev-dependencies]
 criterion = { version = "0.5.1" }
