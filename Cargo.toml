@@ -22,6 +22,7 @@ dotenv = "0.15.0"
 
 # kafka
 rdkafka = { version = "0.37.0"}
+schema_registry_converter = { version = "4.2.0",  features = ["proto_raw"]}
 
 [dev-dependencies]
 criterion = { version = "0.5.1" }

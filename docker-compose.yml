@@ -1,7 +1,7 @@
-networks:
-  gemmy-network:
-    external: true
-    driver: bridge
+#networks:
+#  gemmy-network:
+#    # external: true
+#    driver: bridge
 
 services:
   kafka:
@@ -10,10 +10,12 @@ services:
       - "9092:9092"
     environment:
       KAFKA_KRAFT_MODE: 'true'
-      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://kafka:29092,CONTROLLER://kafka:29093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
       KAFKA_NODE_ID: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -23,38 +25,55 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
     volumes:
       - /var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "echo 'true'"]
-      interval: 8s
-    networks:
-      - gemmy-network
+#    healthcheck:
+#      test: ["CMD-SHELL", "echo 'true'"]
+#      interval: 10s
+#    networks:
+#      - gemmy-network
 
-  btcusd:
-    env_file: ".env"
-    build:
-      context: .
-      dockerfile: Dockerfile
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
     ports:
-      - "50051:50051"
-    depends_on:
-      kafka:
-        condition: service_healthy
+      - "9000:9000"
     environment:
-      - TICKER=BTCUSD
-    networks:
-      - gemmy-network
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:9000
+#    depends_on:
+#      kafka:
+#        condition: service_healthy
+#    healthcheck:
+#      test: ["CMD-SHELL", "echo 'true'"]
+#      interval: 10s
+#    networks:
+#      - gemmy-network
 
-  ethusd:
-    env_file: ".env"
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "50052:50051"
-    depends_on:
-      kafka:
-        condition: service_healthy
-    environment:
-      - TICKER=ETHUSD
-    networks:
-      - gemmy-network
+#  btcusd:
+#    env_file: ".env"
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    ports:
+#      - "50051:50051"
+#    depends_on:
+#      schema-registry:
+#        condition: service_healthy
+#    environment:
+#      - TICKER=BTCUSD
+#    networks:
+#      - gemmy-network
+
+  # ethusd:
+  #   env_file: ".env"
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "50052:50051"
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     - TICKER=ETHUSD
+  #   networks:
+  #     - gemmy-network

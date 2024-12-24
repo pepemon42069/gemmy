@@ -3,6 +3,9 @@ use std::time::Duration;
 use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
+use schema_registry_converter::async_impl::proto_raw::ProtoRawEncoder;
+use schema_registry_converter::async_impl::schema_registry::SrSettings;
+use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
@@ -77,7 +80,7 @@ impl Executor {
         tokio::spawn(async move {
             for result in results {
                 let protobuf = result.to_protobuf();
-                let encoded_data = encode_protobuf(protobuf);
+                let encoded_data = encode_protobuf(protobuf).await;
                 let delivery_result = kafka_producer
                     .send(
                         FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str()).payload(&encoded_data),
@@ -95,16 +98,18 @@ impl Executor {
     }
 }
 
-fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
-    let (mut encoded_data, status) = match protobuf {
-        ProtoBufResult::Create(create_order) => (create_order.encode_to_vec(), 0),
-        ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), 1),
-        ProtoBufResult::PartialFill(partial_fill_order) => (partial_fill_order.encode_to_vec(), 2),
-        ProtoBufResult::CancelModify(cancel_modify_order) => {
-            (cancel_modify_order.encode_to_vec(), 3)
-        }
-        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), 4),
+async fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
+    let (encoded_data, schema_name) = match protobuf {
+        ProtoBufResult::Create(create_order) => (create_order.encode_to_vec(), "CreateOrder"),
+        ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), "FillOrder"),
+        ProtoBufResult::PartialFill(partial_fill_order) => (partial_fill_order.encode_to_vec(), "PartialFillOrder"),
+        ProtoBufResult::CancelModify(cancel_modify_order) => (cancel_modify_order.encode_to_vec(), "CancelModifyOrder"),
+        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), "GenericMessage"),
     };
-    encoded_data.push(status);
-    encoded_data
+    let protobuf_encoder = ProtoRawEncoder::new(SrSettings::new("http://localhost:9000".to_string()));
+    protobuf_encoder.encode(
+        &encoded_data, 
+        format!("models.{}", &schema_name).as_str(), 
+        SubjectNameStrategy::RecordNameStrategy("models".to_string())
+    ).await.unwrap()
 }

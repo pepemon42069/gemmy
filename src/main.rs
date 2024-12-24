@@ -2,11 +2,14 @@ use gemmy::engine::services::{
     order_dispatch_service::OrderDispatchService,
     stat_stream_service::StatStreamer,
 };
+use schema_registry_converter::async_impl::schema_registry::{post_schema, SrSettings};
+use schema_registry_converter::schema_registry_common::{SchemaType, SuppliedSchema};
 use std::{error::Error, sync::Arc};
 use tracing::{error, info};
 use gemmy::engine::configuration::configuration_loader::ConfigurationLoader;
 use gemmy::engine::state::server_state::ServerState;
 use gemmy::engine::tasks::task_manager::TaskManager;
+use std::fs;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
@@ -29,6 +32,19 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         Arc::clone(&kafka_configuration)
     )?;
     
+    let sr_settings = SrSettings::new("http://localhost:9000".to_string());
+    let proto = fs::read_to_string("resources/protobuf/models.proto")?;
+    let schema = SuppliedSchema {
+        name: Some("models.proto".to_string()),
+        schema_type: SchemaType::Protobuf,
+        schema: proto.to_string(),
+        references: vec![], 
+    };
+    match post_schema(&sr_settings, "models".to_string(), schema).await {
+        Ok(_) => info!("successfully posted schema to schema registry"),
+        Err(e) => error!("error posting schema to schema registry: {:?}", e),
+    }
+
     // initialize task manager and register tasks
     let mut task_manager = TaskManager::init(
         Arc::clone(&state.shutdown_notification), 
