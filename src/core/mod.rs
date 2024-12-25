@@ -4,4 +4,3 @@ pub mod models;
 pub mod orderbook;
 /// Store is a private module that contains the structure used to represent the order store.
 mod store;
-pub mod utils;

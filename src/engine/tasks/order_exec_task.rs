@@ -1,20 +1,19 @@
 use std::sync::Arc;
 use std::time::Duration;
-use prost::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use schema_registry_converter::async_impl::proto_raw::ProtoRawEncoder;
 use schema_registry_converter::async_impl::schema_registry::SrSettings;
-use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
-use crate::core::models::{Operation, ProtoBufResult};
-use crate::core::utils::generate_u128_timestamp;
+use crate::core::models::Operation;
 use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
 use crate::engine::configuration::server_configuration::ServerConfiguration;
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
 use crate::engine::state::server_state::ServerState;
+use crate::engine::utils::protobuf::exec_to_proto_encoded;
+use crate::engine::utils::time::generate_u128_timestamp;
 
 pub struct Executor {
     pub batch_size: usize,
@@ -82,12 +81,12 @@ impl Executor {
         }
         let kafka_producer = self.kafka_producer.clone();
         let kafka_topic = self.kafka_topic.clone();
-        let proto_raw_encoder = ProtoRawEncoder::new(
+        let encoder = ProtoRawEncoder::new(
             self.sr_settings.as_ref().clone());
         tokio::spawn(async move {
             for (result, timestamp) in results {
-                let protobuf = result.to_protobuf(id.clone(), timestamp);
-                let encoded_data = encode_protobuf(protobuf, &proto_raw_encoder).await;
+                let encoded_data = exec_to_proto_encoded(
+                    result, id.clone(), timestamp, &encoder).await;
                 let delivery_result = kafka_producer
                     .send(
                         FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str())
@@ -104,31 +103,4 @@ impl Executor {
             }
         });
     }
-}
-
-async fn encode_protobuf<'a>(
-    protobuf: ProtoBufResult , 
-    proto_raw_encoder: &ProtoRawEncoder<'a> ) -> Vec<u8> {
-    let (encoded_data, schema_name) = match protobuf {
-        ProtoBufResult::Create(create_order) => {
-            (create_order.encode_to_vec(), "CreateOrder")
-        },
-        ProtoBufResult::Fill(fill_order) => {
-            (fill_order.encode_to_vec(), "FillOrder")
-        },
-        ProtoBufResult::PartialFill(partial_fill_order) => {
-            (partial_fill_order.encode_to_vec(), "PartialFillOrder")
-        },
-        ProtoBufResult::CancelModify(cancel_modify_order) => {
-            (cancel_modify_order.encode_to_vec(), "CancelModifyOrder")
-        },
-        ProtoBufResult::Failed(generic_message) => {
-            (generic_message.encode_to_vec(), "GenericMessage")
-        },
-    };
-    proto_raw_encoder.encode(
-        &encoded_data,
-        format!("models.{}", &schema_name).as_str(),
-        SubjectNameStrategy::RecordNameStrategy("models".to_string())
-    ).await.unwrap()
 }

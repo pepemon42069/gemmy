@@ -1,7 +1,3 @@
-use crate::protobuf::models::{
-    CancelModifyOrder, CreateOrder, FillOrder, FillOrderData, GenericMessage, PartialFillOrder,
-    RfqResult,
-};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -78,33 +74,6 @@ pub enum RfqStatus {
     PartialFillAndLimitPlaced(u64, u64),
     ConvertToLimit(u64, u64),
     NotPossible,
-}
-
-impl RfqStatus {
-    pub fn to_protobuf(&self) -> RfqResult {
-        match self {
-            RfqStatus::CompleteFill(price) => RfqResult {
-                status: 0,
-                price: *price,
-                quantity: 0,
-            },
-            RfqStatus::PartialFillAndLimitPlaced(price, remaining_quantity) => RfqResult {
-                status: 1,
-                price: *price,
-                quantity: *remaining_quantity,
-            },
-            RfqStatus::ConvertToLimit(price, quantity) => RfqResult {
-                status: 2,
-                price: *price,
-                quantity: *quantity,
-            },
-            RfqStatus::NotPossible => RfqResult {
-                status: 3,
-                price: 0,
-                quantity: 0,
-            },
-        }
-    }
 }
 
 /// This represents the result of a modify operation for an existing limit order.
@@ -187,18 +156,6 @@ impl LimitOrder {
     #[inline(always)]
     pub fn update_order_quantity(&mut self, quantity: u64) {
         self.quantity = quantity;
-    }
-
-    fn to_create_order_proto(self, symbol: String, timestamp:  u128) -> CreateOrder {
-        CreateOrder {
-            status: 0,
-            order_id: self.id.to_be_bytes().to_vec(),
-            price: self.price,
-            quantity: self.quantity,
-            side: self.side as i32,
-            symbol,
-            timestamp: timestamp.to_be_bytes().to_vec(),
-        }
     }
 }
 
@@ -283,18 +240,6 @@ pub struct FillMetaData {
     pub quantity: u64,
 }
 
-impl FillMetaData {
-    fn to_fill_order_data_proto(self) -> FillOrderData {
-        FillOrderData {
-            order_id: self.order_id.to_be_bytes().to_vec(),
-            matched_order_id: self.matched_order_id.to_be_bytes().to_vec(),
-            taker_side: self.taker_side as i32,
-            price: self.price,
-            amount: self.quantity,
-        }
-    }
-}
-
 /// This represents a struct used to return bids and asks in the orderbook at a specific depth.
 /// For example, a level 2 depth will give us top two bids and bottom two asks with aggregated quantities.
 #[derive(Debug, Clone, PartialEq)]
@@ -314,102 +259,4 @@ pub struct Level {
     pub price: u64,
     /// Aggregated quantity of all orders at the aforementioned price point.
     pub quantity: u64,
-}
-
-#[derive(Debug, Clone)]
-pub enum ProtoBufResult {
-    Create(CreateOrder),
-    Fill(FillOrder),
-    PartialFill(PartialFillOrder),
-    CancelModify(CancelModifyOrder),
-    Failed(GenericMessage),
-}
-
-pub trait ProtoBuf {
-    fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult;
-}
-
-impl ProtoBuf for FillResult {
-    fn to_protobuf(&self, symbol: String, timestamp:  u128) -> ProtoBufResult {
-        match self {
-            FillResult::Created(order) => ProtoBufResult::Create(
-                order.to_create_order_proto(symbol, timestamp)),
-            FillResult::Filled(order_fills) => ProtoBufResult::Fill(FillOrder {
-                status: 1,
-                filled_orders: order_fills
-                    .iter()
-                    .map(|fill_data| fill_data.to_fill_order_data_proto())
-                    .collect(),
-                symbol,
-                timestamp: timestamp.to_be_bytes().to_vec(),
-            }),
-            FillResult::PartiallyFilled(order, order_fills) => {
-                ProtoBufResult::PartialFill(PartialFillOrder {
-                    status: 2,
-                    partial_create: Some(order.to_create_order_proto(symbol.clone(), timestamp)),
-                    partial_fills: Some(FillOrder {
-                        status: 2,
-                        filled_orders: order_fills
-                            .iter()
-                            .map(|fill_data| fill_data.to_fill_order_data_proto())
-                            .collect(),
-                        symbol: symbol.clone(),
-                        timestamp: timestamp.to_be_bytes().to_vec(),
-                    }),
-                    symbol,
-                    timestamp: timestamp.to_be_bytes().to_vec(),
-                })
-            }
-            FillResult::Failed => ProtoBufResult::Failed(GenericMessage {
-                message: "failed to place order".to_string(),
-                symbol,
-                timestamp: timestamp.to_be_bytes().to_vec(),
-            }),
-        }
-    }
-}
-
-impl ProtoBuf for ModifyResult {
-    fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult {
-        match self {
-            ModifyResult::Created(fill_result) => 
-                fill_result.to_protobuf(symbol, timestamp),
-            ModifyResult::Modified(id) => 
-                ProtoBufResult::CancelModify(CancelModifyOrder {
-                    status: 3,
-                    order_id: id.to_be_bytes().to_vec(),
-                    symbol,
-                    timestamp: timestamp.to_be_bytes().to_vec(),
-                }),
-            ModifyResult::Failed => ProtoBufResult::Failed(GenericMessage {
-                message: "failed to modify order".to_string(),
-                symbol,
-                timestamp: timestamp.to_be_bytes().to_vec()
-            }),
-        }
-    }
-}
-
-impl ExecutionResult {
-    pub fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult {
-        match self {
-            ExecutionResult::Executed(fill_result) => 
-                fill_result.to_protobuf(symbol, timestamp),
-            ExecutionResult::Modified(modify_result) => 
-                modify_result.to_protobuf(symbol, timestamp),
-            ExecutionResult::Cancelled(id) => 
-                ProtoBufResult::CancelModify(CancelModifyOrder {
-                    status: 4,
-                    order_id: id.to_be_bytes().to_vec(),
-                    symbol,
-                    timestamp: timestamp.to_be_bytes().to_vec(),
-                }),
-            ExecutionResult::Failed(message) => 
-                ProtoBufResult::Failed(GenericMessage {
-                    message: message.clone(),
-                    symbol,
-                    timestamp: timestamp.to_be_bytes().to_vec(),
-                }),
-        }
-    }
 }

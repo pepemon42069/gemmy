@@ -5,6 +5,7 @@ use crate::protobuf::services::stat_stream_server::{StatStream, StatStreamServer
 use std::sync::Arc;
 use tonic::codegen::tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
+use crate::engine::utils::protobuf::rfq_to_proto;
 
 pub struct StatStreamer {
     max_quote_count: usize,
@@ -50,9 +51,7 @@ impl StatStream for StatStreamer {
                 }
                 counter += 1;
                 let result = unsafe {
-                    (*orderbook_manager.get_secondary())
-                        .request_for_quote(payload)
-                        .to_protobuf()
+                    rfq_to_proto((*orderbook_manager.get_secondary()).request_for_quote(payload))
                 };
                 if tx.send(Ok(result)).await.is_err() {
                     break;
