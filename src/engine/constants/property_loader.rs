@@ -1,7 +1,9 @@
 use std::error::Error;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use dotenv::dotenv;
+use schema_registry_converter::async_impl::schema_registry::SrSettings;
 
 pub struct ServerProperties {
     pub socket_address: SocketAddr,
@@ -18,6 +20,7 @@ pub struct ServerProperties {
 pub struct KafkaAdminProperties {
     pub kafka_broker_address: String,
     pub kafka_topic: String,
+    pub sr_settings: Arc<SrSettings>,
 }
 
 pub struct KafkaProducerProperties {
@@ -61,6 +64,7 @@ impl EnvironmentProperties {
             kafka_admin_properties: KafkaAdminProperties {
                 kafka_broker_address: std::env::var("KAFKA_BROKER_ADDRESS")?.parse()?,
                 kafka_topic: std::env::var("KAFKA_TOPIC")?.parse()?,
+                sr_settings: Arc::new(SrSettings::new(std::env::var("SCHEMA_REGISTRY_URL")?.parse()?))
             },
             kafka_producer_properties: KafkaProducerProperties {
                 message_timeout: std::env::var("KAFKA_PRODUCER_MESSAGE_TIMEOUT_MILLIS")?.parse()?,
