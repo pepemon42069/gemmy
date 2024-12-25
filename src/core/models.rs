@@ -63,13 +63,13 @@ pub enum FillResult {
 #[derive(Debug)]
 pub enum ExecutionResult {
     /// This is returned every time an order is matched within the execution flow that generates a [`FillResult`].
-    Executed(FillResult, String, u128),
+    Executed(FillResult),
     /// This is returned when the execution modifies an existing limit order and generates a [`ModifyResult`] enum.
-    Modified(ModifyResult, String, u128),
+    Modified(ModifyResult),
     /// This is returned when the execution cancels an existing order with the passed id.
-    Cancelled(u128, String, u128),
+    Cancelled(u128),
     /// This is used to represent any failure scenario in operation execution.
-    Failed(String, String, u128),
+    Failed(String),
 }
 
 #[derive(Debug)]
@@ -189,14 +189,14 @@ impl LimitOrder {
         self.quantity = quantity;
     }
 
-    fn to_create_order_proto(self, ticker: String, timestamp: u128) -> CreateOrder {
+    fn to_create_order_proto(self, symbol: String, timestamp:  u128) -> CreateOrder {
         CreateOrder {
             status: 0,
             order_id: self.id.to_be_bytes().to_vec(),
             price: self.price,
             quantity: self.quantity,
             side: self.side as i32,
-            symbol: ticker,
+            symbol,
             timestamp: timestamp.to_be_bytes().to_vec(),
         }
     }
@@ -326,42 +326,43 @@ pub enum ProtoBufResult {
 }
 
 pub trait ProtoBuf {
-    fn to_protobuf(&self, ticker: String, timestamp: u128) -> ProtoBufResult;
+    fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult;
 }
 
 impl ProtoBuf for FillResult {
-    fn to_protobuf(&self, ticker: String, timestamp: u128) -> ProtoBufResult {
+    fn to_protobuf(&self, symbol: String, timestamp:  u128) -> ProtoBufResult {
         match self {
-            FillResult::Created(order) => ProtoBufResult::Create(order.to_create_order_proto(ticker, timestamp)),
+            FillResult::Created(order) => ProtoBufResult::Create(
+                order.to_create_order_proto(symbol, timestamp)),
             FillResult::Filled(order_fills) => ProtoBufResult::Fill(FillOrder {
                 status: 1,
                 filled_orders: order_fills
                     .iter()
                     .map(|fill_data| fill_data.to_fill_order_data_proto())
                     .collect(),
-                symbol: ticker,
+                symbol,
                 timestamp: timestamp.to_be_bytes().to_vec(),
             }),
             FillResult::PartiallyFilled(order, order_fills) => {
                 ProtoBufResult::PartialFill(PartialFillOrder {
                     status: 2,
-                    partial_create: Some(order.to_create_order_proto(ticker.clone(), timestamp)),
+                    partial_create: Some(order.to_create_order_proto(symbol.clone(), timestamp)),
                     partial_fills: Some(FillOrder {
                         status: 2,
                         filled_orders: order_fills
                             .iter()
                             .map(|fill_data| fill_data.to_fill_order_data_proto())
                             .collect(),
-                        symbol: ticker.clone(),
+                        symbol: symbol.clone(),
                         timestamp: timestamp.to_be_bytes().to_vec(),
                     }),
-                    symbol: ticker,
+                    symbol,
                     timestamp: timestamp.to_be_bytes().to_vec(),
                 })
             }
             FillResult::Failed => ProtoBufResult::Failed(GenericMessage {
                 message: "failed to place order".to_string(),
-                symbol: ticker,
+                symbol,
                 timestamp: timestamp.to_be_bytes().to_vec(),
             }),
         }
@@ -369,42 +370,44 @@ impl ProtoBuf for FillResult {
 }
 
 impl ProtoBuf for ModifyResult {
-    fn to_protobuf(&self, ticker: String, timestamp: u128) -> ProtoBufResult {
+    fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult {
         match self {
-            ModifyResult::Created(fill_result) => fill_result.to_protobuf(ticker, timestamp),
-            ModifyResult::Modified(id) => ProtoBufResult::CancelModify(CancelModifyOrder {
-                status: 3,
-                order_id: id.to_be_bytes().to_vec(),
-                symbol: ticker,
-                timestamp: timestamp.to_be_bytes().to_vec(),
-            }),
+            ModifyResult::Created(fill_result) => 
+                fill_result.to_protobuf(symbol, timestamp),
+            ModifyResult::Modified(id) => 
+                ProtoBufResult::CancelModify(CancelModifyOrder {
+                    status: 3,
+                    order_id: id.to_be_bytes().to_vec(),
+                    symbol,
+                    timestamp: timestamp.to_be_bytes().to_vec(),
+                }),
             ModifyResult::Failed => ProtoBufResult::Failed(GenericMessage {
                 message: "failed to modify order".to_string(),
-                symbol: ticker,
-                timestamp: timestamp.to_be_bytes().to_vec(),
+                symbol,
+                timestamp: timestamp.to_be_bytes().to_vec()
             }),
         }
     }
 }
 
 impl ExecutionResult {
-    pub fn to_protobuf(&self) -> ProtoBufResult {
+    pub fn to_protobuf(&self, symbol: String, timestamp: u128) -> ProtoBufResult {
         match self {
-            ExecutionResult::Executed(fill_result, ticker, timestamp) => 
-                fill_result.to_protobuf(ticker.clone(), *timestamp),
-            ExecutionResult::Modified(modify_result, ticker, timestamp) => 
-                modify_result.to_protobuf(ticker.clone(), *timestamp),
-            ExecutionResult::Cancelled(id, ticker, timestamp) => 
+            ExecutionResult::Executed(fill_result) => 
+                fill_result.to_protobuf(symbol, timestamp),
+            ExecutionResult::Modified(modify_result) => 
+                modify_result.to_protobuf(symbol, timestamp),
+            ExecutionResult::Cancelled(id) => 
                 ProtoBufResult::CancelModify(CancelModifyOrder {
                     status: 4,
                     order_id: id.to_be_bytes().to_vec(),
-                    symbol: ticker.clone(),
+                    symbol,
                     timestamp: timestamp.to_be_bytes().to_vec(),
                 }),
-            ExecutionResult::Failed(message, ticker, timestamp) => 
+            ExecutionResult::Failed(message) => 
                 ProtoBufResult::Failed(GenericMessage {
-                    message: message.to_string(),
-                    symbol: ticker.clone(),
+                    message: message.clone(),
+                    symbol,
                     timestamp: timestamp.to_be_bytes().to_vec(),
                 }),
         }

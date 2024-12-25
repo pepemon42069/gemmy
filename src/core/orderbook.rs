@@ -1,7 +1,7 @@
 use super::{
     models::{
         Depth, ExecutionResult, FillMetaData, FillResult, Level, LimitOrder, MarketOrder,
-        ModifyResult, Operation, ProtoBufResult, Side,
+        ModifyResult, Operation, Side,
     },
     store::Store,
 };
@@ -9,7 +9,6 @@ use crate::core::models::RfqStatus;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
 use uuid::Uuid;
-use crate::core::utils::generate_u128_timestamp;
 
 /// This is the core structure that is used to create an orderbook.
 /// It stores all limit order data in the form of a two BTreeMaps, each representing either side of the orderbook.
@@ -120,56 +119,50 @@ impl OrderBook {
     ///
     /// * [`ExecutionResult`] that depicts the status of execution of the operation.
     pub fn execute(&mut self, operation: Operation) -> ExecutionResult {
-        let ticker = self.get_id().clone();
-        
         match operation {
             Operation::Limit(order) => match order.side {
-                Side::Bid => ExecutionResult::Executed(self.limit_bid_order(order), ticker, generate_u128_timestamp()),
-                Side::Ask => ExecutionResult::Executed(self.limit_ask_order(order), ticker, generate_u128_timestamp()),
+                Side::Bid => ExecutionResult::Executed(self.limit_bid_order(order)),
+                Side::Ask => ExecutionResult::Executed(self.limit_ask_order(order)),
             },
             Operation::Market(order) => match order.side {
                 Side::Bid => {
                     let result = self.market_bid_order(order);
                     match result {
                         FillResult::Failed => {
-                            ExecutionResult::Failed("placed market order on empty book".to_string(), ticker, generate_u128_timestamp())
+                            ExecutionResult::Failed("placed market order on empty book".to_string())
                         }
-                        _ => ExecutionResult::Executed(result, ticker, generate_u128_timestamp()),
+                        _ => ExecutionResult::Executed(result),
                     }
                 }
                 Side::Ask => {
                     let result = self.market_ask_order(order);
                     match result {
                         FillResult::Failed => {
-                            ExecutionResult::Failed("placed market order on empty book".to_string(), ticker, generate_u128_timestamp())
+                            ExecutionResult::Failed("placed market order on empty book".to_string())
                         }
-                        _ => ExecutionResult::Executed(result, ticker, generate_u128_timestamp()),
+                        _ => ExecutionResult::Executed(result),
                     }
                 }
             },
             Operation::Modify(order) => match order.side {
                 Side::Bid => match self.modify_limit_buy_order(order) {
                     ModifyResult::Failed => {
-                        ExecutionResult::Failed("no modification occurred".to_string(), ticker, generate_u128_timestamp())
+                        ExecutionResult::Failed("no modification occurred".to_string())
                     }
-                    result => ExecutionResult::Modified(result, ticker, generate_u128_timestamp()),
+                    result => ExecutionResult::Modified(result),
                 },
                 Side::Ask => match self.modify_limit_ask_order(order) {
                     ModifyResult::Failed => {
-                        ExecutionResult::Failed("no modification occurred".to_string(), ticker, generate_u128_timestamp())
+                        ExecutionResult::Failed("no modification occurred".to_string())
                     }
-                    result => ExecutionResult::Modified(result, ticker, generate_u128_timestamp()),
+                    result => ExecutionResult::Modified(result),
                 },
             },
             Operation::Cancel(id) => match self.cancel_order(id) {
-                None => ExecutionResult::Failed("order not found".to_string(), ticker, generate_u128_timestamp()),
-                Some(id) => ExecutionResult::Cancelled(id, ticker, generate_u128_timestamp()),
+                None => ExecutionResult::Failed("order not found".to_string()),
+                Some(id) => ExecutionResult::Cancelled(id),
             },
         }
-    }
-
-    pub fn execute_proto(&mut self, operation: Operation) -> ProtoBufResult {
-        self.execute(operation).to_protobuf()
     }
 
     /// This method returns the depth of the orderbook upto specified levels.
@@ -1079,7 +1072,7 @@ mod tests {
         let mut book = OrderBook::default();
         let order = MarketOrder::new(1, 100, Side::Bid);
         match book.execute(Operation::Market(order)) {
-            ExecutionResult::Failed(message, ..) => {
+            ExecutionResult::Failed(message) => {
                 assert_eq!(message, "placed market order on empty book")
             }
             _ => panic!("test failed"),
@@ -1091,7 +1084,7 @@ mod tests {
         let mut book = OrderBook::default();
         let order = MarketOrder::new(1, 100, Side::Ask);
         match book.execute(Operation::Market(order)) {
-            ExecutionResult::Failed(message, ..) => {
+            ExecutionResult::Failed(message) => {
                 assert_eq!(message, "placed market order on empty book")
             }
             _ => panic!("test failed"),

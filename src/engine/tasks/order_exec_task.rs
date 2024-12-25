@@ -10,6 +10,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
 use crate::core::models::{Operation, ProtoBufResult};
+use crate::core::utils::generate_u128_timestamp;
 use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
 use crate::engine::configuration::server_configuration::ServerConfiguration;
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
@@ -74,17 +75,18 @@ impl Executor {
 
     async fn process_batch(&self, batch: &[Operation]) {
         let primary = self.orderbook_manager.get_primary();
+        let id = unsafe { (*primary).get_id()};
         let mut results = vec![];
         for order in batch {
-            results.push(unsafe { (*primary).execute(*order) });
+            results.push((unsafe { (*primary).execute(*order) }, generate_u128_timestamp()));
         }
         let kafka_producer = self.kafka_producer.clone();
         let kafka_topic = self.kafka_topic.clone();
         let proto_raw_encoder = ProtoRawEncoder::new(
             self.sr_settings.as_ref().clone());
         tokio::spawn(async move {
-            for result in results {
-                let protobuf = result.to_protobuf();
+            for (result, timestamp) in results {
+                let protobuf = result.to_protobuf(id.clone(), timestamp);
                 let encoded_data = encode_protobuf(protobuf, &proto_raw_encoder).await;
                 let delivery_result = kafka_producer
                     .send(
