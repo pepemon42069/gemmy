@@ -19,7 +19,9 @@ pub struct Executor {
     pub orderbook_manager: Arc<OrderbookManager>,
     pub kafka_topic: String,
     pub kafka_producer: Arc<FutureProducer>,
+    pub schema_registry_url : SrSettings,
     pub rx: Receiver<Operation>
+
 }
 
 impl Executor {
@@ -30,8 +32,9 @@ impl Executor {
         orderbook_manager: Arc<OrderbookManager>,
         kafka_topic: String,
         kafka_producer: Arc<FutureProducer>,
+        schema_registry_url : SrSettings,
         rx: Receiver<Operation>
-    ) -> Self {
+    ) -> Executor {
         Self {
             batch_size,
             batch_timeout,
@@ -39,10 +42,11 @@ impl Executor {
             orderbook_manager,
             kafka_topic,
             kafka_producer,
+            schema_registry_url,
             rx
         }
     }
-    
+
     pub async fn run(&mut self) {
         let mut batch = Vec::with_capacity(self.batch_size);
         let mut batch_timer = tokio::time::interval(self.batch_timeout);
@@ -77,10 +81,12 @@ impl Executor {
         }
         let kafka_producer = self.kafka_producer.clone();
         let kafka_topic = self.kafka_topic.clone();
+
+        let proto_raw_encoder = ProtoRawEncoder::new(self.schema_registry_url.clone());
         tokio::spawn(async move {
             for result in results {
                 let protobuf = result.to_protobuf();
-                let encoded_data = encode_protobuf(protobuf).await;
+                let encoded_data = encode_protobuf(protobuf, proto_raw_encoder).await;
                 let delivery_result = kafka_producer
                     .send(
                         FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str()).payload(&encoded_data),
@@ -98,7 +104,7 @@ impl Executor {
     }
 }
 
-async fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
+async fn encode_protobuf(protobuf: ProtoBufResult , proto_raw_encoder: ProtoRawEncoder ) -> Vec<u8> {
     let (encoded_data, schema_name) = match protobuf {
         ProtoBufResult::Create(create_order) => (create_order.encode_to_vec(), "CreateOrder"),
         ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), "FillOrder"),
@@ -106,10 +112,11 @@ async fn encode_protobuf(protobuf: ProtoBufResult) -> Vec<u8> {
         ProtoBufResult::CancelModify(cancel_modify_order) => (cancel_modify_order.encode_to_vec(), "CancelModifyOrder"),
         ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), "GenericMessage"),
     };
-    let protobuf_encoder = ProtoRawEncoder::new(SrSettings::new("http://localhost:9000".to_string()));
-    protobuf_encoder.encode(
-        &encoded_data, 
-        format!("models.{}", &schema_name).as_str(), 
+
+     // Initialize the ProtoRawEncoder
+    proto_raw_encoder.encode(
+        &encoded_data,
+        format!("models.{}", &schema_name).as_str(),
         SubjectNameStrategy::RecordNameStrategy("models".to_string())
     ).await.unwrap()
 }

@@ -1,6 +1,7 @@
 use rdkafka::ClientConfig;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::FutureProducer;
+use schema_registry_converter::async_impl::proto_raw::ProtoRawEncoder;
 use crate::engine::constants::property_loader::{KafkaAdminProperties, KafkaProducerProperties};
 
 pub struct KafkaConfiguration {
@@ -20,5 +21,9 @@ impl KafkaConfiguration {
             .set("retry.backoff.ms" , &self.kafka_producer_properties.retry_backoff)
             .set("delivery.timeout.ms" , &self.kafka_producer_properties.delivery_timeout)
             .create()
+    }
+
+    pub fn proto_encoder(&self) -> ProtoRawEncoder {
+        ProtoRawEncoder::new(self.kafka_admin_properties.schema_registry_url.clone())
     }
 }

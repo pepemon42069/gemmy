@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use rdkafka::producer::FutureProducer;
+use schema_registry_converter::async_impl::schema_registry::SrSettings;
 use crate::core::models::{LimitOrder, MarketOrder, Operation, Side};
 use crate::protobuf::models::{CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest, ModifyLimitOrderRequest, StringResponse};
 use crate::protobuf::{
@@ -32,6 +33,7 @@ impl OrderDispatchService {
         orderbook_manager: Arc<OrderbookManager>,
         kafka_topic: String,
         kafka_producer: Arc<FutureProducer>,
+        schema_registry_url : SrSettings,
         task_manager: &mut TaskManager
     ) -> DispatchService {
         let (tx, rx) = mpsc::channel(10000);
@@ -44,6 +46,7 @@ impl OrderDispatchService {
                     orderbook_manager,
                     kafka_topic,
                     kafka_producer,
+                    schema_registry_url,
                     rx).run().await;
             }
         });
@@ -91,7 +94,6 @@ impl OrderDispatchService {
     }
 
     async fn execute(&self, payload: Operation) -> Result<Response<StringResponse>, Status> {
-        // info!("dispatching message: {:?}", payload);
         match self.tx.send(payload).await {
             Ok(_) => (),
             Err(e) => {
