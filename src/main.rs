@@ -23,10 +23,10 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         server_configuration.server_properties.orderbook_ticker);
     
     // initialize server state
-    let state = ServerState::init(
+    let state = Arc::new(ServerState::init(
         Arc::clone(&server_configuration), 
         Arc::clone(&kafka_configuration)
-    ).await?;
+    ).await?);
 
     // initialize task manager and register tasks
     let mut task_manager = TaskManager::init(
@@ -39,13 +39,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     // create services
     let order_dispatcher_service = OrderDispatchService::create(
-        server_configuration.server_properties.order_exec_batch_size,
-        server_configuration.server_properties.order_exec_batch_timeout,
-        Arc::clone(&state.shutdown_notification), 
-        Arc::clone(&state.orderbook_manager),
-        kafka_configuration.kafka_admin_properties.kafka_topic.clone(),
-        Arc::clone(&state.kafka_producer),
-        kafka_configuration.kafka_admin_properties.schema_registry_url.clone(),
+        Arc::clone(&server_configuration),
+        Arc::clone(&kafka_configuration),
+        Arc::clone(&state),
         &mut task_manager
     );
     

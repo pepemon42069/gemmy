@@ -10,7 +10,10 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::Notify;
 use tracing::{error, info};
 use crate::core::models::{Operation, ProtoBufResult};
+use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
+use crate::engine::configuration::server_configuration::ServerConfiguration;
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
+use crate::engine::state::server_state::ServerState;
 
 pub struct Executor {
     pub batch_size: usize,
@@ -19,30 +22,26 @@ pub struct Executor {
     pub orderbook_manager: Arc<OrderbookManager>,
     pub kafka_topic: String,
     pub kafka_producer: Arc<FutureProducer>,
-    pub schema_registry_url : SrSettings,
+    pub sr_settings : Arc<SrSettings>,
     pub rx: Receiver<Operation>
 
 }
 
 impl Executor {
     pub fn new(
-        batch_size: usize,
-        batch_timeout: Duration,
-        shutdown_notification: Arc<Notify>,
-        orderbook_manager: Arc<OrderbookManager>,
-        kafka_topic: String,
-        kafka_producer: Arc<FutureProducer>,
-        schema_registry_url : SrSettings,
+        server_configuration: Arc<ServerConfiguration>,
+        kafka_configuration: Arc<KafkaConfiguration>,
+        state: Arc<ServerState>,
         rx: Receiver<Operation>
     ) -> Executor {
         Self {
-            batch_size,
-            batch_timeout,
-            shutdown_notification,
-            orderbook_manager,
-            kafka_topic,
-            kafka_producer,
-            schema_registry_url,
+            batch_size: server_configuration.server_properties.order_exec_batch_size,
+            batch_timeout: server_configuration.server_properties.order_exec_batch_timeout,
+            shutdown_notification: Arc::clone(&state.shutdown_notification),
+            orderbook_manager: Arc::clone(&state.orderbook_manager),
+            kafka_topic: kafka_configuration.kafka_admin_properties.kafka_topic.clone(),
+            kafka_producer: Arc::clone(&state.kafka_producer),
+            sr_settings: Arc::clone(&kafka_configuration.kafka_admin_properties.sr_settings),
             rx
         }
     }
@@ -81,15 +80,16 @@ impl Executor {
         }
         let kafka_producer = self.kafka_producer.clone();
         let kafka_topic = self.kafka_topic.clone();
-
-        let proto_raw_encoder = ProtoRawEncoder::new(self.schema_registry_url.clone());
+        let proto_raw_encoder = ProtoRawEncoder::new(
+            self.sr_settings.as_ref().clone());
         tokio::spawn(async move {
             for result in results {
                 let protobuf = result.to_protobuf();
-                let encoded_data = encode_protobuf(protobuf, proto_raw_encoder).await;
+                let encoded_data = encode_protobuf(protobuf, &proto_raw_encoder).await;
                 let delivery_result = kafka_producer
                     .send(
-                        FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str()).payload(&encoded_data),
+                        FutureRecord::<(), Vec<u8>>::to(kafka_topic.as_str())
+                            .payload(&encoded_data),
                         Timeout::After(Duration::new(5, 0)),
                     )
                     .await;
@@ -104,16 +104,26 @@ impl Executor {
     }
 }
 
-async fn encode_protobuf(protobuf: ProtoBufResult , proto_raw_encoder: ProtoRawEncoder ) -> Vec<u8> {
+async fn encode_protobuf<'a>(
+    protobuf: ProtoBufResult , 
+    proto_raw_encoder: &ProtoRawEncoder<'a> ) -> Vec<u8> {
     let (encoded_data, schema_name) = match protobuf {
-        ProtoBufResult::Create(create_order) => (create_order.encode_to_vec(), "CreateOrder"),
-        ProtoBufResult::Fill(fill_order) => (fill_order.encode_to_vec(), "FillOrder"),
-        ProtoBufResult::PartialFill(partial_fill_order) => (partial_fill_order.encode_to_vec(), "PartialFillOrder"),
-        ProtoBufResult::CancelModify(cancel_modify_order) => (cancel_modify_order.encode_to_vec(), "CancelModifyOrder"),
-        ProtoBufResult::Failed(generic_message) => (generic_message.encode_to_vec(), "GenericMessage"),
+        ProtoBufResult::Create(create_order) => {
+            (create_order.encode_to_vec(), "CreateOrder")
+        },
+        ProtoBufResult::Fill(fill_order) => {
+            (fill_order.encode_to_vec(), "FillOrder")
+        },
+        ProtoBufResult::PartialFill(partial_fill_order) => {
+            (partial_fill_order.encode_to_vec(), "PartialFillOrder")
+        },
+        ProtoBufResult::CancelModify(cancel_modify_order) => {
+            (cancel_modify_order.encode_to_vec(), "CancelModifyOrder")
+        },
+        ProtoBufResult::Failed(generic_message) => {
+            (generic_message.encode_to_vec(), "GenericMessage")
+        },
     };
-
-     // Initialize the ProtoRawEncoder
     proto_raw_encoder.encode(
         &encoded_data,
         format!("models.{}", &schema_name).as_str(),

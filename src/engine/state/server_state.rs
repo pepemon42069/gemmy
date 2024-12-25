@@ -6,7 +6,6 @@ use schema_registry_converter::async_impl::schema_registry::{post_schema};
 use schema_registry_converter::schema_registry_common::{SchemaType, SuppliedSchema};
 
 use tokio::sync::Notify;
-use tracing::{error, info};
 use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
 use crate::engine::configuration::server_configuration::ServerConfiguration;
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
@@ -21,7 +20,7 @@ impl ServerState {
     pub async fn init(
         server_configuration: Arc<ServerConfiguration>,
         kafka_configuration: Arc<KafkaConfiguration>
-    ) -> Result<ServerState, Box< dyn Error>> {
+    ) -> Result<ServerState, Box<dyn Error>> {
 
 
         let proto = fs::read_to_string("resources/protobuf/models.proto")?;
@@ -31,12 +30,10 @@ impl ServerState {
             schema: proto.to_string(),
             references: vec![],
         };
-        match post_schema(
-            &kafka_configuration.kafka_admin_properties.schema_registry_url,
-            "models".to_string(), schema).await {
-            Ok(_) => info!("successfully posted schema to schema registry"),
-            Err(e) => error!("error posting schema to schema registry: {:?}", e),
-        }
+        post_schema(
+            &kafka_configuration.kafka_admin_properties.sr_settings, 
+            "models".to_string(), schema
+        ).await?;
 
         let shutdown_notification = Arc::new(Notify::new());
         let orderbook_manager = Arc::new(OrderbookManager::new(
