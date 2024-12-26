@@ -316,19 +316,17 @@ impl OrderBook {
     fn limit_bid_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut update_min_ask = false;
+        let mut level_consumed = (self.min_ask.unwrap_or(u64::MAX), false);
         for (ask_price, queue) in self.ask_side_book.iter_mut() {
-            if update_min_ask {
-                self.min_ask = Some(*ask_price);
-                update_min_ask = false;
-            }
             if queue.is_empty() {
                 continue;
             }
+            self.min_ask = Some(*ask_price);
             if order.price < *ask_price {
+                level_consumed.1 = false;
                 break;
             }
-            Self::process_queue_limit(
+            level_consumed = (*ask_price, Self::process_order_queue(
                 &order.id,
                 ask_price,
                 order.side,
@@ -336,10 +334,10 @@ impl OrderBook {
                 queue,
                 &mut self.order_store,
                 &mut order_fills,
-            );
-            if remaining_quantity > 0 {
-                update_min_ask = true
-            }
+            ));
+        }
+        if level_consumed.1 && level_consumed.0 == order.price {
+            self.min_ask = None;
         }
         self.process_bid_fills(order, order_fills, remaining_quantity)
     }
@@ -366,19 +364,17 @@ impl OrderBook {
     fn limit_ask_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut update_max_bid = false;
+        let mut level_consumed = (self.max_bid.unwrap_or(u64::MIN), false);
         for (bid_price, queue) in self.bid_side_book.iter_mut().rev() {
-            if update_max_bid {
-                self.max_bid = Some(*bid_price);
-                update_max_bid = false;
-            }
             if queue.is_empty() {
                 continue;
             }
+            self.max_bid = Some(*bid_price);
             if order.price > *bid_price {
+                level_consumed.1 = false;
                 break;
             }
-            Self::process_queue_limit(
+            level_consumed = (*bid_price, Self::process_order_queue(
                 &order.id,
                 bid_price,
                 order.side,
@@ -386,10 +382,10 @@ impl OrderBook {
                 queue,
                 &mut self.order_store,
                 &mut order_fills,
-            );
-            if remaining_quantity > 0 {
-                update_max_bid = true
-            }
+            ));
+        }
+        if level_consumed.1 && level_consumed.0 == order.price {
+            self.max_bid = None;
         }
         self.process_ask_fills(order, order_fills, remaining_quantity)
     }
@@ -417,21 +413,18 @@ impl OrderBook {
     fn market_bid_order(&mut self, order: MarketOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut update_min_ask = false;
+        let mut level_consumed = false;
 
-        if self.min_ask.is_none() {
+        if self.min_ask.is_none() || self.min_ask.unwrap() == u64::MAX {
             return FillResult::Failed;
         }
 
         for (ask_price, queue) in self.ask_side_book.iter_mut() {
-            if update_min_ask {
-                self.min_ask = Some(*ask_price);
-                update_min_ask = false;
-            }
             if queue.is_empty() {
                 continue;
             }
-            Self::process_queue_limit(
+            self.min_ask = Some(*ask_price);
+            level_consumed = Self::process_order_queue(
                 &order.id,
                 ask_price,
                 order.side,
@@ -440,11 +433,11 @@ impl OrderBook {
                 &mut self.order_store,
                 &mut order_fills,
             );
-            if remaining_quantity > 0 {
-                update_min_ask = true
-            }
         }
         let order = order.to_limit(self.min_ask.unwrap_or(u64::MAX));
+        if level_consumed {
+            self.min_ask = None
+        }
         self.process_bid_fills(order, order_fills, remaining_quantity)
     }
 
@@ -521,21 +514,17 @@ impl OrderBook {
     fn market_ask_order(&mut self, order: MarketOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut update_max_bid = false;
-
+        let mut level_consumed = false;
         if self.max_bid.is_none() {
             return FillResult::Failed;
         }
 
         for (bid_price, queue) in self.bid_side_book.iter_mut().rev() {
-            if update_max_bid {
-                self.max_bid = Some(*bid_price);
-                update_max_bid = false;
-            }
             if queue.is_empty() {
                 continue;
             }
-            Self::process_queue_limit(
+            self.max_bid = Some(*bid_price);
+            level_consumed = Self::process_order_queue(
                 &order.id,
                 bid_price,
                 order.side,
@@ -544,11 +533,11 @@ impl OrderBook {
                 &mut self.order_store,
                 &mut order_fills,
             );
-            if remaining_quantity > 0 {
-                update_max_bid = true
-            }
         }
         let order = order.to_limit(self.max_bid.unwrap_or(u64::MIN));
+        if level_consumed {
+            self.max_bid = None;
+        }
         self.process_ask_fills(order, order_fills, remaining_quantity)
     }
 
@@ -622,7 +611,7 @@ impl OrderBook {
     /// # Returns
     ///
     /// * A resultant vector containing [`FillMetaData`] generated in order matching.
-    fn process_queue_limit(
+    fn process_order_queue(
         id: &u128,
         price: &u64,
         side: Side,
@@ -630,7 +619,8 @@ impl OrderBook {
         queue: &mut VecDeque<usize>,
         store: &mut Store,
         order_fills: &mut Vec<FillMetaData>,
-    ) {
+    ) -> bool {
+        let mut level_consumed = false;
         while let Some(front_order_index) = queue.front() {
             if *remaining_quantity == 0 {
                 break;
@@ -660,6 +650,10 @@ impl OrderBook {
                 queue.pop_front();
             }
         }
+        if queue.is_empty() {
+            level_consumed = true;
+        }
+        level_consumed
     }
 
     /// This is an internal helper method used to aggregate quantity at prices going down the top of the book
@@ -1153,41 +1147,67 @@ mod tests {
     }
 
     #[test]
-    fn it_updates_top_price_when_bid_is_filled() {
+    fn it_updates_top_price_when_bid_is_filled_and_asks_remain() {
         let mut book = create_orderbook();
-        let order = LimitOrder::new(11, 130, 500, Side::Bid);
+        let order = LimitOrder::new(11, 120, 300, Side::Bid);
         book.limit_bid_order(order);
-        match book.min_ask {
-            Some(price) => assert_eq!(price, order.price),
-            None => panic!("test failed"),
-        }
+        assert_eq!(book.min_ask, Some(130));
     }
 
     #[test]
-    fn it_updates_top_price_when_ask_is_filled() {
+    fn it_updates_top_price_when_ask_is_filled_and_bids_remain() {
         let mut book = create_orderbook();
-        let order = LimitOrder::new(11, 100, 500, Side::Ask);
+        let order = LimitOrder::new(11, 110, 300, Side::Ask);
         book.limit_ask_order(order);
-        match book.max_bid {
-            Some(price) => assert_eq!(price, order.price),
-            None => panic!("test failed"),
-        }
+        assert_eq!(book.max_bid, Some(100));
     }
 
     #[test]
-    fn it_updates_top_price_when_bid_is_partially_filled() {
+    fn it_updates_top_price_when_bid_is_filled_and_asks_are_empty() {
+        let mut book = create_orderbook();
+        let order = LimitOrder::new(11, 130, 600, Side::Bid);
+        book.limit_bid_order(order);
+        assert_eq!(book.min_ask, None);
+    }
+
+    #[test]
+    fn it_updates_top_price_when_ask_is_filled_and_bids_are_empty() {
+        let mut book = create_orderbook();
+        let order = LimitOrder::new(11, 100, 600, Side::Ask);
+        book.limit_ask_order(order);
+        assert_eq!(book.max_bid, None);
+    }
+
+    #[test]
+    fn it_updates_top_price_when_bid_is_partially_filled_and_asks_remain() {
+        let mut book = create_orderbook();
+        let order = LimitOrder::new(11, 120, 400, Side::Bid);
+        book.limit_bid_order(order);
+        assert!(book.min_ask == Some(130) && book.max_bid == Some(order.price))
+    }
+
+    #[test]
+    fn it_updates_top_price_when_ask_is_partially_filled_and_bids_remain() {
+        let mut book = create_orderbook();
+        let order = LimitOrder::new(11, 110, 400, Side::Ask);
+        book.limit_ask_order(order);
+        assert!(book.max_bid == Some(100) && book.min_ask == Some(order.price))
+    }
+
+    #[test]
+    fn it_updates_top_price_when_bid_is_partially_filled_and_asks_are_empty() {
         let mut book = create_orderbook();
         let order = LimitOrder::new(11, 130, 700, Side::Bid);
         book.limit_bid_order(order);
-        assert!(book.min_ask == Some(order.price) && book.max_bid == Some(order.price))
+        assert!(book.min_ask.is_none() && book.max_bid == Some(order.price))
     }
 
     #[test]
-    fn it_updates_top_price_when_ask_is_partially_filled() {
+    fn it_updates_top_price_when_ask_is_partially_filled_and_bids_are_empty() {
         let mut book = create_orderbook();
         let order = LimitOrder::new(11, 100, 700, Side::Ask);
         book.limit_ask_order(order);
-        assert!(book.max_bid == Some(order.price) && book.min_ask == Some(order.price))
+        assert!(book.max_bid.is_none() && book.min_ask == Some(order.price))
     }
 
     #[test]
