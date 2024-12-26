@@ -316,17 +316,17 @@ impl OrderBook {
     fn limit_bid_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut level_consumed = (self.min_ask.unwrap_or(u64::MAX), false);
+        let mut level_consumed = false;
         for (ask_price, queue) in self.ask_side_book.iter_mut() {
             if queue.is_empty() {
                 continue;
             }
             self.min_ask = Some(*ask_price);
             if order.price < *ask_price {
-                level_consumed.1 = false;
+                level_consumed = false;
                 break;
             }
-            level_consumed = (*ask_price, Self::process_order_queue(
+            level_consumed = Self::process_order_queue(
                 &order.id,
                 ask_price,
                 order.side,
@@ -334,9 +334,9 @@ impl OrderBook {
                 queue,
                 &mut self.order_store,
                 &mut order_fills,
-            ));
+            );
         }
-        if level_consumed.1 && level_consumed.0 == order.price {
+        if level_consumed {
             self.min_ask = None;
         }
         self.process_bid_fills(order, order_fills, remaining_quantity)
@@ -364,17 +364,17 @@ impl OrderBook {
     fn limit_ask_order(&mut self, order: LimitOrder) -> FillResult {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
-        let mut level_consumed = (self.max_bid.unwrap_or(u64::MIN), false);
+        let mut level_consumed = false;
         for (bid_price, queue) in self.bid_side_book.iter_mut().rev() {
             if queue.is_empty() {
                 continue;
             }
             self.max_bid = Some(*bid_price);
             if order.price > *bid_price {
-                level_consumed.1 = false;
+                level_consumed = false;
                 break;
             }
-            level_consumed = (*bid_price, Self::process_order_queue(
+            level_consumed = Self::process_order_queue(
                 &order.id,
                 bid_price,
                 order.side,
@@ -382,9 +382,9 @@ impl OrderBook {
                 queue,
                 &mut self.order_store,
                 &mut order_fills,
-            ));
+            );
         }
-        if level_consumed.1 && level_consumed.0 == order.price {
+        if level_consumed {
             self.max_bid = None;
         }
         self.process_ask_fills(order, order_fills, remaining_quantity)
