@@ -8,7 +8,7 @@ use std::ops::{Index, IndexMut};
 /// We also pre-allocate the entire memory needed to store the order data to save reallocation calls.
 pub struct Store {
     /// This vector stores all our limit orders.
-    pub orders: Vec<LimitOrder>,
+    orders: Vec<LimitOrder>,
     /// This vector represents the indices of the above vector that are free to use.
     free_indexes: Vec<usize>,
     /// THis map creates a relation between the index on our BTreeMap in the orderbook and the orders vector here.
