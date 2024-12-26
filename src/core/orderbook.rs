@@ -493,7 +493,7 @@ impl OrderBook {
             self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::PartiallyFilled(order, order_fills)
         } else {
-            self.last_trade_price = order.price;
+            self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::Filled(order_fills)
         }
     }
@@ -596,7 +596,7 @@ impl OrderBook {
             self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::PartiallyFilled(order, order_fills)
         } else {
-            self.last_trade_price = order.price;
+            self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::Filled(order_fills)
         }
     }
