@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -259,4 +260,19 @@ pub struct Level {
     pub price: u64,
     /// Aggregated quantity of all orders at the aforementioned price point.
     pub quantity: u64,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Granularity {
+    P100 = 10000,
+    P10 = 1000,
+    P = 100,
+    P0 = 10,
+    P00 = 1,
+}
+
+#[derive(Debug)]
+pub struct OrderbookAggregated {
+    pub bids: BTreeMap<u64, u64>,
+    pub asks: BTreeMap<u64, u64>,
 }

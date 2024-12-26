@@ -5,7 +5,7 @@ use super::{
     },
     store::Store,
 };
-use crate::core::models::RfqStatus;
+use crate::core::models::{Granularity, OrderbookAggregated, RfqStatus};
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Index, IndexMut};
 use uuid::Uuid;
@@ -777,6 +777,36 @@ impl OrderBook {
             }
         }
     }
+    
+    pub fn orderbook_data(&self, granularity: Granularity) -> OrderbookAggregated {
+        let mut bids = BTreeMap::new();
+        let mut asks = BTreeMap::new();
+        for order in &self.order_store.orders {
+            let price = Self::round_to_nearest_multiple(
+                order.price, granularity as u64, order.side);
+            let map = match order.side {
+                Side::Bid => &mut bids,
+                Side::Ask => &mut asks,
+            };
+            match map.get(&price) {
+                Some(entry) => {
+                    map.insert(price, order.quantity + entry);
+                }
+                None => {
+                    map.insert(price, order.quantity);
+                }
+            }
+        }
+        bids.remove(&0);
+        OrderbookAggregated { bids, asks }
+    }
+
+    fn round_to_nearest_multiple(n: u64, granularity: u64, side: Side) -> u64 {
+        match side {
+            Side::Bid => ((n as f64 / granularity as f64).floor() * granularity as f64) as u64,
+            Side::Ask => ((n as f64 / granularity as f64).ceil() * granularity as f64) as u64
+        }
+    }
 }
 
 #[cfg(test)]
@@ -790,6 +820,7 @@ mod tests {
     };
     use std::collections::{BTreeMap, VecDeque};
     use std::ops::Index;
+    use crate::core::models::Granularity;
 
     fn create_orderbook() -> OrderBook {
         let mut book = OrderBook::default();
@@ -1196,5 +1227,27 @@ mod tests {
         let book = OrderBook::default();
         let min_ask = book.get_min_ask();
         assert_eq!(min_ask, None);
+    }
+    
+    #[test]
+    fn it_fetches_orderbook_data() {
+        let mut book = create_orderbook();
+        let orders = vec![
+            LimitOrder::new(11, 115, 200, Side::Bid),
+            LimitOrder::new(12, 118, 300, Side::Ask),
+            LimitOrder::new(13, 314, 300, Side::Ask),
+        ];
+        for order in orders {
+            book.execute(Operation::Limit(order));
+        }
+        let result = book.orderbook_data( Granularity::P0);
+        println!("{:?}", result);
+        assert!(
+            *result.bids.get(&100).unwrap() == 300
+            && *result.bids.get(&110).unwrap() == 500
+            && *result.asks.get(&120).unwrap() == 600
+            && *result.asks.get(&130).unwrap() == 300
+            && *result.asks.get(&320).unwrap() == 300
+        );
     }
 }
