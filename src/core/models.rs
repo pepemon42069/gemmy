@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -273,6 +272,7 @@ pub enum Granularity {
 
 #[derive(Debug)]
 pub struct OrderbookAggregated {
-    pub bids: BTreeMap<u64, u64>,
-    pub asks: BTreeMap<u64, u64>,
+    pub granularity: Granularity,
+    pub bids: Vec<(u64, u64)>,
+    pub asks: Vec<(u64, u64)>,
 }

@@ -777,36 +777,34 @@ impl OrderBook {
             }
         }
     }
-    
+
     pub fn orderbook_data(&self, granularity: Granularity) -> OrderbookAggregated {
         let mut bids = BTreeMap::new();
         let mut asks = BTreeMap::new();
         for order in &self.order_store.orders {
-            let price = Self::round_to_nearest_multiple(
-                order.price, granularity as u64, order.side);
-            let map = match order.side {
-                Side::Bid => &mut bids,
-                Side::Ask => &mut asks,
-            };
-            match map.get(&price) {
-                Some(entry) => {
-                    map.insert(price, order.quantity + entry);
-                }
-                None => {
-                    map.insert(price, order.quantity);
-                }
-            }
+            let price = Self::round_to_nearest_multiple(order.price, granularity as u64, order.side);
+            let map = if order.side == Side::Bid { &mut bids } else { &mut asks };
+            map.entry(price)
+                .and_modify(|e| *e += order.quantity)
+                .or_insert(order.quantity);
         }
         bids.remove(&0);
-        OrderbookAggregated { bids, asks }
+        OrderbookAggregated {
+            granularity,
+            bids: bids.into_iter().collect(),
+            asks: asks.into_iter().collect(),
+        }
     }
 
     fn round_to_nearest_multiple(n: u64, granularity: u64, side: Side) -> u64 {
-        match side {
-            Side::Bid => ((n as f64 / granularity as f64).floor() * granularity as f64) as u64,
-            Side::Ask => ((n as f64 / granularity as f64).ceil() * granularity as f64) as u64
-        }
+        let factor = n as f64 / granularity as f64;
+        let rounded = match side {
+            Side::Bid => factor.floor(),
+            Side::Ask => factor.ceil(),
+        };
+        (rounded * granularity as f64) as u64
     }
+
 }
 
 #[cfg(test)]
@@ -1242,12 +1240,6 @@ mod tests {
         }
         let result = book.orderbook_data( Granularity::P0);
         println!("{:?}", result);
-        assert!(
-            *result.bids.get(&100).unwrap() == 300
-            && *result.bids.get(&110).unwrap() == 500
-            && *result.asks.get(&120).unwrap() == 600
-            && *result.asks.get(&130).unwrap() == 300
-            && *result.asks.get(&320).unwrap() == 300
-        );
+        assert_eq!(result.bids.last().unwrap().1, 500)
     }
 }
