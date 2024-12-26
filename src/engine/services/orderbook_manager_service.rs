@@ -1,9 +1,12 @@
+use std::sync::Arc;
 use crate::core::orderbook::OrderBook;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use tokio::sync::RwLock;
 
 pub struct OrderbookManager {
     primary: AtomicPtr<OrderBook>,
     secondary: AtomicPtr<OrderBook>,
+    pub secondary_lock: Arc<RwLock<()>>,
 }
 
 impl OrderbookManager {
@@ -13,6 +16,7 @@ impl OrderbookManager {
         OrderbookManager {
             primary: AtomicPtr::new(primary),
             secondary: AtomicPtr::new(secondary),
+            secondary_lock: Arc::new(RwLock::new(()))
         }
     }
 
@@ -26,7 +30,8 @@ impl OrderbookManager {
 
     // WARNING: always take fresh secondary reference after snapshot
     // in case the reference is stored in a variable outside
-    pub fn snapshot(&self) {
+    pub async fn snapshot(&self) {
+        let lock = self.secondary_lock.write().await;
         let primary = self.primary.load(Ordering::SeqCst);
         let old_secondary = self.secondary.load(Ordering::SeqCst);
         unsafe {
@@ -34,6 +39,7 @@ impl OrderbookManager {
             self.secondary.store(latest, Ordering::SeqCst);
             drop(Box::from_raw(old_secondary));
         }
+        drop(lock);
     }
 }
 
@@ -42,8 +48,8 @@ mod tests {
     use crate::core::models::{LimitOrder, Operation, Side};
     use crate::engine::services::orderbook_manager_service::OrderbookManager;
 
-    #[test]
-    fn it_tests_successful_snapshot() {
+    #[tokio::test]
+    async fn it_tests_successful_snapshot() {
         let orderbook_manager = OrderbookManager::new(
             "test".to_string(), 100, 10000);
         let operation = Operation::Limit(LimitOrder::new(1, 100, 100, Side::Bid));
@@ -54,7 +60,7 @@ mod tests {
         unsafe {
             (*primary).execute(operation);
         }
-        orderbook_manager.snapshot();
+        orderbook_manager.snapshot().await;
         let secondary = orderbook_manager.get_secondary();
         unsafe {
             println!("{:?}", (*secondary).depth(5));

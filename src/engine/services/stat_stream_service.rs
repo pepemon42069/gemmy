@@ -61,8 +61,11 @@ impl StatStream for StatStreamer {
                     break;
                 }
                 counter += 1;
-                let orderbook = unsafe { (*orderbook_manager.get_secondary()).clone() };
-                let result = rfq_to_proto(orderbook.request_for_quote(payload));
+                let lock = orderbook_manager.secondary_lock.read().await;
+                let result = unsafe {
+                    rfq_to_proto((*orderbook_manager.get_secondary()).request_for_quote(payload)) 
+                };
+                drop(lock);
                 if tx.send(Ok(result)).await.is_err() {
                     break;
                 }
@@ -83,13 +86,16 @@ impl StatStream for StatStreamer {
                 if tx.is_closed() {
                     break;
                 }
-                let orderbook = unsafe { (*orderbook_manager.get_secondary()).clone() };
-                let result = orderbook_data_to_proto(
-                    orderbook.get_last_trade_price(),
-                    orderbook.get_max_bid().unwrap_or(u64::MIN),
-                    orderbook.get_min_ask().unwrap_or(u64::MAX),
-                    orderbook.orderbook_data(payload)
-                );
+                let lock = orderbook_manager.secondary_lock.read().await;
+                let result = unsafe {
+                    orderbook_data_to_proto(
+                        (*orderbook_manager.get_secondary()).get_last_trade_price(),
+                        (*orderbook_manager.get_secondary()).get_max_bid().unwrap_or(u64::MIN),
+                        (*orderbook_manager.get_secondary()).get_min_ask().unwrap_or(u64::MAX),
+                        (*orderbook_manager.get_secondary()).orderbook_data(payload)
+                    )
+                };
+                drop(lock);
                 if tx.send(Ok(result)).await.is_err() {
                     break;
                 }

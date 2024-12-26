@@ -791,25 +791,28 @@ impl OrderBook {
 
     pub fn orderbook_data(&self, granularity: Granularity) -> OrderbookAggregated {
         let mut bids = BTreeMap::new();
+        for (price, order_queue) in self.bid_side_book.iter().rev() {
+            if order_queue.is_empty() { continue; }
+            let price = Self::round_to_nearest_multiple(*price, granularity as u64, Side::Bid);
+            let quantity = order_queue.iter()
+                .map(|i| self.order_store.index(*i).quantity).sum();
+            bids.entry(price).and_modify(|e| *e += quantity).or_insert(quantity);
+        }
         let mut asks = BTreeMap::new();
-        for order in &self.order_store.orders {
-            let price = Self::round_to_nearest_multiple(order.price, granularity as u64, order.side);
-            let map = if order.side == Side::Bid { &mut bids } else { &mut asks };
-            map.entry(price)
-                .and_modify(|e| *e += order.quantity)
-                .or_insert(order.quantity);
+        for (price, order_queue) in self.ask_side_book.iter() {
+            if order_queue.is_empty() { continue; }
+            let price = Self::round_to_nearest_multiple(*price, granularity as u64, Side::Ask);
+            let quantity = order_queue.iter()
+                .map(|i| self.order_store.index(*i).quantity).sum();
+            asks.entry(price).and_modify(|e| *e += quantity).or_insert(quantity);
         }
-        bids.remove(&0);
-        OrderbookAggregated {
-            bids: bids.into_iter().collect(),
-            asks: asks.into_iter().collect(),
-        }
+        OrderbookAggregated { bids: bids.into_iter().collect(), asks: asks.into_iter().collect() }
     }
 
     fn round_to_nearest_multiple(price: u64, granularity: u64, side: Side) -> u64 {
         match side { 
-            Side::Bid => (((price / granularity) as f64).floor() * granularity as f64) as u64,
-            Side::Ask => (((price / granularity) as f64).ceil() * granularity as f64) as u64
+            Side::Bid => ((price as f64 / granularity as f64).floor() * granularity as f64) as u64,
+            Side::Ask => ((price as f64 / granularity as f64).ceil() * granularity as f64) as u64
         }
     }
 }
