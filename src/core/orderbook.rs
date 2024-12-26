@@ -414,16 +414,19 @@ impl OrderBook {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut level_consumed = false;
-
+        let mut update_min_ask = false;
         if self.min_ask.is_none() || self.min_ask.unwrap() == u64::MAX {
             return FillResult::Failed;
         }
 
         for (ask_price, queue) in self.ask_side_book.iter_mut() {
+            if update_min_ask {
+                self.min_ask = Some(*ask_price);
+                update_min_ask = false;
+            }
             if queue.is_empty() {
                 continue;
             }
-            self.min_ask = Some(*ask_price);
             level_consumed = Self::process_order_queue(
                 &order.id,
                 ask_price,
@@ -433,6 +436,9 @@ impl OrderBook {
                 &mut self.order_store,
                 &mut order_fills,
             );
+            if remaining_quantity > 0 {
+                update_min_ask = true
+            }
         }
         let order = order.to_limit(self.min_ask.unwrap_or(u64::MAX));
         if level_consumed {
@@ -515,15 +521,19 @@ impl OrderBook {
         let mut order_fills = Vec::new();
         let mut remaining_quantity = order.quantity;
         let mut level_consumed = false;
+        let mut update_max_bid = false;
         if self.max_bid.is_none() {
             return FillResult::Failed;
         }
 
         for (bid_price, queue) in self.bid_side_book.iter_mut().rev() {
+            if update_max_bid {
+                self.max_bid = Some(*bid_price);
+                update_max_bid = false;
+            }
             if queue.is_empty() {
                 continue;
             }
-            self.max_bid = Some(*bid_price);
             level_consumed = Self::process_order_queue(
                 &order.id,
                 bid_price,
@@ -533,6 +543,9 @@ impl OrderBook {
                 &mut self.order_store,
                 &mut order_fills,
             );
+            if remaining_quantity > 0 {
+                update_max_bid = true
+            }
         }
         let order = order.to_limit(self.max_bid.unwrap_or(u64::MIN));
         if level_consumed {
