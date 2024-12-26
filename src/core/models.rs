@@ -263,16 +263,15 @@ pub struct Level {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Granularity {
-    P100 = 10000,
-    P10 = 1000,
-    P = 100,
-    P0 = 10,
     P00 = 1,
+    P0 = 10,
+    P = 100,
+    P10 = 1000,
+    P100 = 10000,
 }
 
 #[derive(Debug)]
 pub struct OrderbookAggregated {
-    pub granularity: Granularity,
     pub bids: Vec<(u64, u64)>,
     pub asks: Vec<(u64, u64)>,
 }

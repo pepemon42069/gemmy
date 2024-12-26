@@ -13,4 +13,5 @@ service OrderDispatcher {
 
 service StatStream {
   rpc rfq(models.CreateMarketOrderRequest) returns (stream models.RfqResult);
+  rpc orderbook(models.OrderbookDataRequest) returns (stream models.OrderbookData);
 }

@@ -373,6 +373,19 @@ pub mod stat_stream_server {
             &self,
             request: tonic::Request<super::super::models::CreateMarketOrderRequest>,
         ) -> std::result::Result<tonic::Response<Self::rfqStream>, tonic::Status>;
+        /// Server streaming response type for the orderbook method.
+        type orderbookStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<
+                    super::super::models::OrderbookData,
+                    tonic::Status,
+                >,
+            >
+            + std::marker::Send
+            + 'static;
+        async fn orderbook(
+            &self,
+            request: tonic::Request<super::super::models::OrderbookDataRequest>,
+        ) -> std::result::Result<tonic::Response<Self::orderbookStream>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct StatStreamServer<T> {
@@ -484,6 +497,55 @@ pub mod stat_stream_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = rfqSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/services.StatStream/orderbook" => {
+                    #[allow(non_camel_case_types)]
+                    struct orderbookSvc<T: StatStream>(pub Arc<T>);
+                    impl<
+                        T: StatStream,
+                    > tonic::server::ServerStreamingService<
+                        super::super::models::OrderbookDataRequest,
+                    > for orderbookSvc<T> {
+                        type Response = super::super::models::OrderbookData;
+                        type ResponseStream = T::orderbookStream;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::models::OrderbookDataRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as StatStream>::orderbook(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = orderbookSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

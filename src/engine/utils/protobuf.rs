@@ -1,13 +1,8 @@
 use prost::Message;
 use schema_registry_converter::async_impl::proto_raw::ProtoRawEncoder;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
-use crate::core::models::{
-    ExecutionResult, FillMetaData, FillResult, LimitOrder, ModifyResult, RfqStatus
-};
-use crate::protobuf::models::{
-    CancelModifyOrder, CreateOrder, FillOrder, FillOrderData, GenericMessage, PartialFillOrder, 
-    RfqResult
-};
+use crate::core::models::{ExecutionResult, FillMetaData, FillResult, LimitOrder, ModifyResult, OrderbookAggregated, RfqStatus};
+use crate::protobuf::models::{CancelModifyOrder, CreateOrder, FillOrder, FillOrderData, GenericMessage, Level, OrderbookData, PartialFillOrder, RfqResult};
 
 pub async fn exec_to_proto_encoded<'a>(
     execution_result: ExecutionResult,
@@ -71,6 +66,25 @@ pub fn rfq_to_proto(rfq_status: RfqStatus) -> RfqResult {
             price: 0,
             quantity: 0,
         },
+    }
+}
+
+pub fn orderbook_data_to_proto(
+    last_trade_price: u64,
+    max_bid: u64,
+    min_ask: u64,
+    orderbook_data: OrderbookAggregated
+) -> OrderbookData {
+    OrderbookData {
+        last_trade_price,
+        max_bid,
+        min_ask,
+        bids: orderbook_data.bids.iter()
+            .map(|(p, q)| Level { price: *p, quantity: *q })
+            .collect(),
+        asks: orderbook_data.asks.iter()
+            .map(|(p, q)| Level { price: *p, quantity: *q })
+            .collect(),
     }
 }
 

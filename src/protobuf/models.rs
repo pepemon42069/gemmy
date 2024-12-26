@@ -119,6 +119,31 @@ pub struct CancelLimitOrderRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub order_id: ::prost::alloc::vec::Vec<u8>,
 }
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct OrderbookDataRequest {
+    #[prost(enumeration = "Granularity", tag = "1")]
+    pub granularity: i32,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct Level {
+    #[prost(uint64, tag = "1")]
+    pub price: u64,
+    #[prost(uint64, tag = "2")]
+    pub quantity: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OrderbookData {
+    #[prost(uint64, tag = "1")]
+    pub max_bid: u64,
+    #[prost(uint64, tag = "2")]
+    pub min_ask: u64,
+    #[prost(uint64, tag = "3")]
+    pub last_trade_price: u64,
+    #[prost(message, repeated, tag = "4")]
+    pub bids: ::prost::alloc::vec::Vec<Level>,
+    #[prost(message, repeated, tag = "5")]
+    pub asks: ::prost::alloc::vec::Vec<Level>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum OrderSide {
@@ -208,6 +233,41 @@ impl RfqStatus {
             "PartialFill" => Some(Self::PartialFill),
             "ConvertLimit" => Some(Self::ConvertLimit),
             "NotPossible" => Some(Self::NotPossible),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum Granularity {
+    P00 = 0,
+    P0 = 1,
+    P = 2,
+    P10 = 3,
+    P100 = 4,
+}
+impl Granularity {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::P00 => "P00",
+            Self::P0 => "P0",
+            Self::P => "P",
+            Self::P10 => "P10",
+            Self::P100 => "P100",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "P00" => Some(Self::P00),
+            "P0" => Some(Self::P0),
+            "P" => Some(Self::P),
+            "P10" => Some(Self::P10),
+            "P100" => Some(Self::P100),
             _ => None,
         }
     }

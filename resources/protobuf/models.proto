@@ -99,3 +99,28 @@ message ModifyLimitOrderRequest {
 message CancelLimitOrderRequest {
   bytes order_id = 1;
 }
+
+enum Granularity {
+  P00 = 0;
+  P0 = 1;
+  P = 2;
+  P10 = 3;
+  P100 = 4;
+}
+
+message OrderbookDataRequest {
+  Granularity granularity = 1;
+}
+
+message Level {
+  uint64 price = 1;
+  uint64 quantity = 2;
+}
+
+message OrderbookData {
+  uint64 max_bid = 1;
+  uint64 min_ask = 2;
+  uint64 last_trade_price = 3;
+  repeated Level bids = 4;
+  repeated Level asks = 5;
+}

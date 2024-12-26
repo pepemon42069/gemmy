@@ -34,6 +34,8 @@ pub struct OrderBook {
     queue_capacity: usize,
     /// The store for all orders.
     order_store: Store,
+    /// Price of the last filled order.
+    last_trade_price: u64,
 }
 
 /// This assigns the default values for vector dequeue capacity as well as the store capacity when constructing the orderbook.
@@ -70,6 +72,7 @@ impl OrderBook {
             bid_side_book: BTreeMap::new(),
             ask_side_book: BTreeMap::new(),
             order_store: Store::new(store_capacity),
+            last_trade_price: u64::MIN,
             queue_capacity,
         }
     }
@@ -99,6 +102,10 @@ impl OrderBook {
     /// * An `Option<u64>` with the minimum value of ask bid side orderbook.
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
+    }
+    
+    pub fn get_last_trade_price(&self) -> u64 {
+        self.last_trade_price
     }
 
     /// This method is used to execute an [`Operation`] on the orderbook.
@@ -483,8 +490,10 @@ impl OrderBook {
                 .entry(order.price)
                 .or_insert_with(|| VecDeque::with_capacity(self.queue_capacity))
                 .push_back(index);
+            self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::PartiallyFilled(order, order_fills)
         } else {
+            self.last_trade_price = order.price;
             FillResult::Filled(order_fills)
         }
     }
@@ -584,8 +593,10 @@ impl OrderBook {
                 .entry(order.price)
                 .or_insert_with(|| VecDeque::with_capacity(self.queue_capacity))
                 .push_back(index);
+            self.last_trade_price = order_fills.last().unwrap().price;
             FillResult::PartiallyFilled(order, order_fills)
         } else {
+            self.last_trade_price = order.price;
             FillResult::Filled(order_fills)
         }
     }
@@ -790,21 +801,17 @@ impl OrderBook {
         }
         bids.remove(&0);
         OrderbookAggregated {
-            granularity,
             bids: bids.into_iter().collect(),
             asks: asks.into_iter().collect(),
         }
     }
 
-    fn round_to_nearest_multiple(n: u64, granularity: u64, side: Side) -> u64 {
-        let factor = n as f64 / granularity as f64;
-        let rounded = match side {
-            Side::Bid => factor.floor(),
-            Side::Ask => factor.ceil(),
-        };
-        (rounded * granularity as f64) as u64
+    fn round_to_nearest_multiple(price: u64, granularity: u64, side: Side) -> u64 {
+        match side { 
+            Side::Bid => (((price / granularity) as f64).floor() * granularity as f64) as u64,
+            Side::Ask => (((price / granularity) as f64).ceil() * granularity as f64) as u64
+        }
     }
-
 }
 
 #[cfg(test)]
@@ -1241,5 +1248,17 @@ mod tests {
         let result = book.orderbook_data( Granularity::P0);
         println!("{:?}", result);
         assert_eq!(result.bids.last().unwrap().1, 500)
+    }
+    
+    #[test]
+    fn it_updates_last_trade_price() {
+        let mut book = create_orderbook();
+        let orders = vec![
+            MarketOrder::new(11, 400, Side::Ask),
+        ];
+        for order in orders {
+            book.execute(Operation::Market(order));
+        }
+        assert_eq!(book.last_trade_price, 100);
     }
 }
