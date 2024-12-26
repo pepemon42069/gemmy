@@ -61,11 +61,9 @@ impl StatStream for StatStreamer {
                     break;
                 }
                 counter += 1;
-                let lock = orderbook_manager.secondary_lock.read().await;
                 let result = unsafe {
                     rfq_to_proto((*orderbook_manager.get_secondary()).request_for_quote(payload)) 
                 };
-                drop(lock);
                 if tx.send(Ok(result)).await.is_err() {
                     break;
                 }
@@ -86,7 +84,6 @@ impl StatStream for StatStreamer {
                 if tx.is_closed() {
                     break;
                 }
-                let lock = orderbook_manager.secondary_lock.read().await;
                 let result = unsafe {
                     orderbook_data_to_proto(
                         (*orderbook_manager.get_secondary()).get_last_trade_price(),
@@ -95,7 +92,6 @@ impl StatStream for StatStreamer {
                         (*orderbook_manager.get_secondary()).orderbook_data(payload)
                     )
                 };
-                drop(lock);
                 if tx.send(Ok(result)).await.is_err() {
                     break;
                 }

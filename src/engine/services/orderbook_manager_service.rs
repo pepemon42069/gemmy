@@ -1,12 +1,9 @@
-use std::sync::Arc;
 use crate::core::orderbook::OrderBook;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use tokio::sync::RwLock;
 
 pub struct OrderbookManager {
     primary: AtomicPtr<OrderBook>,
     secondary: AtomicPtr<OrderBook>,
-    pub secondary_lock: Arc<RwLock<()>>,
 }
 
 impl OrderbookManager {
@@ -16,7 +13,6 @@ impl OrderbookManager {
         OrderbookManager {
             primary: AtomicPtr::new(primary),
             secondary: AtomicPtr::new(secondary),
-            secondary_lock: Arc::new(RwLock::new(()))
         }
     }
 
@@ -31,7 +27,6 @@ impl OrderbookManager {
     // WARNING: always take fresh secondary reference after snapshot
     // in case the reference is stored in a variable outside
     pub async fn snapshot(&self) {
-        let lock = self.secondary_lock.write().await;
         let primary = self.primary.load(Ordering::SeqCst);
         let old_secondary = self.secondary.load(Ordering::SeqCst);
         unsafe {
@@ -39,7 +34,6 @@ impl OrderbookManager {
             self.secondary.store(latest, Ordering::SeqCst);
             drop(Box::from_raw(old_secondary));
         }
-        drop(lock);
     }
 }
 
