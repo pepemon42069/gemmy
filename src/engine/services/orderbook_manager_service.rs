@@ -30,7 +30,7 @@ impl OrderbookManager {
 
     // WARNING: always take fresh secondary reference after snapshot
     // in case the reference is stored in a variable outside
-    pub async fn snapshot(&self) {
+    pub fn snapshot(&self) {
         let primary = self.primary.load(Ordering::SeqCst);
         let old_secondary = self.secondary.load(Ordering::SeqCst);
         unsafe {
@@ -57,7 +57,7 @@ mod tests {
         unsafe {
             (*primary).execute(operation);
         }
-        orderbook_manager.snapshot().await;
+        orderbook_manager.snapshot();
         let secondary = orderbook_manager.get_secondary();
         unsafe {
             println!("{:?}", (*secondary).depth(5));

@@ -32,7 +32,7 @@ impl Snapshot {
                     break;
                 },
                 _ = sleep(self.snapshot_interval) => {
-                    self.orderbook_manager.snapshot().await;
+                    self.orderbook_manager.snapshot();
                 }
             }
         }
