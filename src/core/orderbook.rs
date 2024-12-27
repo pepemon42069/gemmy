@@ -208,9 +208,7 @@ impl OrderBook {
                         let first = bids.next();
                         if let Some((price, queue)) = first {
                             if order.price == *price && queue.len() == 1 {
-                                if let Some((price, _)) = bids.next() {
-                                    self.max_bid = Some(*price);
-                                }
+                                self.max_bid = bids.next().map(|(price, _)| *price);
                             }
                         }
                         if let Some(order_queue) = self.bid_side_book.get_mut(&order.price) {
@@ -222,9 +220,7 @@ impl OrderBook {
                         let first = asks.next();
                         if let Some((price, queue)) = first {
                             if order.price == *price && queue.len() == 1 {
-                                if let Some((price, _)) = asks.next() {
-                                    self.min_ask = Some(*price);
-                                }
+                                self.min_ask = asks.next().map(|(price, _)| *price)
                             }
                         }
                         if let Some(order_queue) = self.ask_side_book.get_mut(&order.price) {
@@ -902,6 +898,29 @@ mod tests {
         match book.cancel_order(11) {
             None => (),
             _ => panic!("test failed"),
+        }
+    }
+    #[test]
+    fn it_cancels_a_single_bid() {
+        let mut book = OrderBook::default();
+        book.execute(Operation::Limit(LimitOrder::new(1, 100, 100, Side::Bid)));
+        match book.cancel_order(1) {
+            None => panic!("test failed"),
+            Some(order_id) => {
+                assert!(order_id == 1 && book.get_max_bid().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn it_cancels_a_single_ask() {
+        let mut book = OrderBook::default();
+        book.execute(Operation::Limit(LimitOrder::new(1, 100, 100, Side::Ask)));
+        match book.cancel_order(1) {
+            None => panic!("test failed"),
+            Some(order_id) => {
+                assert!(order_id == 1 && book.get_min_ask().is_none());
+            }
         }
     }
 
