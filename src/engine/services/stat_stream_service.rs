@@ -1,11 +1,13 @@
 use crate::core::models::{Granularity, MarketOrder, Side};
 use crate::engine::services::orderbook_manager_service::OrderbookManager;
-use crate::protobuf::models::{CreateMarketOrderRequest, OrderbookData, OrderbookDataRequest, RfqResult};
+use crate::engine::utils::protobuf::{orderbook_data_to_proto, rfq_to_proto};
+use crate::protobuf::models::{
+    CreateMarketOrderRequest, OrderbookData, OrderbookDataRequest, RfqResult,
+};
 use crate::protobuf::services::stat_stream_server::{StatStream, StatStreamServer};
 use std::sync::Arc;
 use tonic::codegen::tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-use crate::engine::utils::protobuf::{rfq_to_proto, orderbook_data_to_proto};
 
 pub struct StatStreamer {
     max_quote_count: usize,
@@ -62,7 +64,7 @@ impl StatStream for StatStreamer {
                 }
                 counter += 1;
                 let result = unsafe {
-                    rfq_to_proto((*orderbook_manager.get_secondary()).request_for_quote(payload)) 
+                    rfq_to_proto((*orderbook_manager.get_secondary()).request_for_quote(payload))
                 };
                 if tx.send(Ok(result)).await.is_err() {
                     break;
@@ -75,7 +77,10 @@ impl StatStream for StatStreamer {
 
     type orderbookStream = ReceiverStream<Result<OrderbookData, Status>>;
 
-    async fn orderbook(&self, request: Request<OrderbookDataRequest>) -> Result<Response<Self::orderbookStream>, Status> {
+    async fn orderbook(
+        &self,
+        request: Request<OrderbookDataRequest>,
+    ) -> Result<Response<Self::orderbookStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(self.max_buffer_size);
         let orderbook_manager = Arc::clone(&self.orderbook_manager);
         let payload = Self::build_orderbook_data_payload(request);
@@ -87,9 +92,13 @@ impl StatStream for StatStreamer {
                 let result = unsafe {
                     orderbook_data_to_proto(
                         (*orderbook_manager.get_secondary()).get_last_trade_price(),
-                        (*orderbook_manager.get_secondary()).get_max_bid().unwrap_or(u64::MIN),
-                        (*orderbook_manager.get_secondary()).get_min_ask().unwrap_or(u64::MAX),
-                        (*orderbook_manager.get_secondary()).orderbook_data(payload)
+                        (*orderbook_manager.get_secondary())
+                            .get_max_bid()
+                            .unwrap_or(u64::MIN),
+                        (*orderbook_manager.get_secondary())
+                            .get_min_ask()
+                            .unwrap_or(u64::MAX),
+                        (*orderbook_manager.get_secondary()).orderbook_data(payload),
                     )
                 };
                 if tx.send(Ok(result)).await.is_err() {

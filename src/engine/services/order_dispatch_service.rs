@@ -1,16 +1,19 @@
-use std::sync::Arc;
 use crate::core::models::{LimitOrder, MarketOrder, Operation, Side};
-use crate::protobuf::models::{CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest, ModifyLimitOrderRequest, StringResponse};
-use crate::protobuf::services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
-use tonic::{codegen::InterceptedService, Request, Response, Status};
-use tracing::{error, info};
 use crate::engine::configuration::kafka_configuration::KafkaConfiguration;
 use crate::engine::configuration::server_configuration::ServerConfiguration;
 use crate::engine::state::server_state::ServerState;
 use crate::engine::tasks::order_exec_task::Executor;
 use crate::engine::tasks::task_manager::TaskManager;
+use crate::protobuf::models::{
+    CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest,
+    ModifyLimitOrderRequest, StringResponse,
+};
+use crate::protobuf::services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
+use tonic::{codegen::InterceptedService, Request, Response, Status};
+use tracing::{error, info};
 
 pub type DispatchService = InterceptedService<
     OrderDispatcherServer<OrderDispatchService>,
@@ -27,16 +30,14 @@ impl OrderDispatchService {
         server_configuration: Arc<ServerConfiguration>,
         kafka_configuration: Arc<KafkaConfiguration>,
         state: Arc<ServerState>,
-        task_manager: &mut TaskManager
+        task_manager: &mut TaskManager,
     ) -> DispatchService {
         let (tx, rx) = mpsc::channel(10000);
         task_manager.register("order_exec_task", {
             async move {
-                Executor::new(
-                    server_configuration,
-                    kafka_configuration,
-                    state,
-                    rx).run().await;
+                Executor::new(server_configuration, kafka_configuration, state, rx)
+                    .run()
+                    .await;
             }
         });
         OrderDispatcherServer::with_interceptor(OrderDispatchService { tx }, Self::interceptor)

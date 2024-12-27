@@ -1,2 +1,2 @@
-pub mod time;
 pub mod protobuf;
+pub mod time;

@@ -1,9 +1,9 @@
+use crate::engine::services::orderbook_manager_service::OrderbookManager;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::time::sleep;
 use tracing::info;
-use crate::engine::services::orderbook_manager_service::OrderbookManager;
 
 pub struct Snapshot {
     pub shutdown_notification: Arc<Notify>,
@@ -13,11 +13,15 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn new(
-        shutdown_notification: Arc<Notify>, 
-        orderbook_manager: Arc<OrderbookManager>, 
-        snapshot_interval: Duration
+        shutdown_notification: Arc<Notify>,
+        orderbook_manager: Arc<OrderbookManager>,
+        snapshot_interval: Duration,
     ) -> Self {
-        Self { shutdown_notification, orderbook_manager, snapshot_interval }
+        Self {
+            shutdown_notification,
+            orderbook_manager,
+            snapshot_interval,
+        }
     }
 
     pub async fn run(&self) {

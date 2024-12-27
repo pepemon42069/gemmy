@@ -8,7 +8,11 @@ pub struct OrderbookManager {
 
 impl OrderbookManager {
     pub fn new(id: String, queue_capacity: usize, store_capacity: usize) -> OrderbookManager {
-        let primary = Box::into_raw(Box::new(OrderBook::new(id.clone(), queue_capacity, store_capacity)));
+        let primary = Box::into_raw(Box::new(OrderBook::new(
+            id.clone(),
+            queue_capacity,
+            store_capacity,
+        )));
         let secondary = Box::into_raw(Box::new(OrderBook::new(id, queue_capacity, store_capacity)));
         OrderbookManager {
             primary: AtomicPtr::new(primary),
@@ -44,8 +48,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_tests_successful_snapshot() {
-        let orderbook_manager = OrderbookManager::new(
-            "test".to_string(), 100, 10000);
+        let orderbook_manager = OrderbookManager::new("test".to_string(), 100, 10000);
         let operation = Operation::Limit(LimitOrder::new(1, 100, 100, Side::Bid));
         let primary = orderbook_manager.get_primary();
         unsafe {

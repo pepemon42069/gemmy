@@ -49,7 +49,11 @@ impl Default for OrderBook {
         const DEFAULT_QUEUE_CAPACITY: usize = 10;
         const DEFAULT_STORE_CAPACITY: usize = 10000;
 
-        Self::new(Uuid::new_v4().to_string(), DEFAULT_QUEUE_CAPACITY, DEFAULT_STORE_CAPACITY)
+        Self::new(
+            Uuid::new_v4().to_string(),
+            DEFAULT_QUEUE_CAPACITY,
+            DEFAULT_STORE_CAPACITY,
+        )
     }
 }
 
@@ -103,7 +107,7 @@ impl OrderBook {
     pub fn get_min_ask(&self) -> Option<u64> {
         self.min_ask
     }
-    
+
     pub fn get_last_trade_price(&self) -> u64 {
         self.last_trade_price
     }
@@ -208,7 +212,7 @@ impl OrderBook {
                             order_queue.retain(|i| index != *i);
                             if order_queue.is_empty() {
                                 self.bid_side_book.remove(&order.price);
-                                self.max_bid = self.bid_side_book.keys().rev().next().cloned();
+                                self.max_bid = self.bid_side_book.keys().next_back().cloned();
                             }
                         }
                     }
@@ -789,33 +793,49 @@ impl OrderBook {
     pub fn orderbook_data(&self, granularity: Granularity) -> OrderbookAggregated {
         let mut bids = BTreeMap::new();
         for (price, order_queue) in self.bid_side_book.iter().rev() {
-            if order_queue.is_empty() { continue; }
+            if order_queue.is_empty() {
+                continue;
+            }
             let price = Self::round_to_nearest_multiple(*price, granularity as u64, Side::Bid);
-            let quantity = order_queue.iter()
-                .map(|i| self.order_store.index(*i).quantity).sum();
-            bids.entry(price).and_modify(|e| *e += quantity).or_insert(quantity);
+            let quantity = order_queue
+                .iter()
+                .map(|i| self.order_store.index(*i).quantity)
+                .sum();
+            bids.entry(price)
+                .and_modify(|e| *e += quantity)
+                .or_insert(quantity);
         }
         let mut asks = BTreeMap::new();
         for (price, order_queue) in self.ask_side_book.iter() {
-            if order_queue.is_empty() { continue; }
+            if order_queue.is_empty() {
+                continue;
+            }
             let price = Self::round_to_nearest_multiple(*price, granularity as u64, Side::Ask);
-            let quantity = order_queue.iter()
-                .map(|i| self.order_store.index(*i).quantity).sum();
-            asks.entry(price).and_modify(|e| *e += quantity).or_insert(quantity);
+            let quantity = order_queue
+                .iter()
+                .map(|i| self.order_store.index(*i).quantity)
+                .sum();
+            asks.entry(price)
+                .and_modify(|e| *e += quantity)
+                .or_insert(quantity);
         }
-        OrderbookAggregated { bids: bids.into_iter().collect(), asks: asks.into_iter().collect() }
+        OrderbookAggregated {
+            bids: bids.into_iter().collect(),
+            asks: asks.into_iter().collect(),
+        }
     }
 
     fn round_to_nearest_multiple(price: u64, granularity: u64, side: Side) -> u64 {
-        match side { 
+        match side {
             Side::Bid => ((price as f64 / granularity as f64).floor() * granularity as f64) as u64,
-            Side::Ask => ((price as f64 / granularity as f64).ceil() * granularity as f64) as u64
+            Side::Ask => ((price as f64 / granularity as f64).ceil() * granularity as f64) as u64,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::core::models::Granularity;
     use crate::core::{
         models::{
             ExecutionResult, FillMetaData, FillResult, LimitOrder, MarketOrder, Operation, Side,
@@ -825,7 +845,6 @@ mod tests {
     };
     use std::collections::{BTreeMap, VecDeque};
     use std::ops::Index;
-    use crate::core::models::Granularity;
 
     fn create_orderbook() -> OrderBook {
         let mut book = OrderBook::default();
@@ -1282,7 +1301,7 @@ mod tests {
         let min_ask = book.get_min_ask();
         assert_eq!(min_ask, None);
     }
-    
+
     #[test]
     fn it_fetches_orderbook_data() {
         let mut book = create_orderbook();
@@ -1294,17 +1313,15 @@ mod tests {
         for order in orders {
             book.execute(Operation::Limit(order));
         }
-        let result = book.orderbook_data( Granularity::P0);
+        let result = book.orderbook_data(Granularity::P0);
         println!("{:?}", result);
         assert_eq!(result.bids.last().unwrap().1, 500)
     }
-    
+
     #[test]
     fn it_updates_last_trade_price() {
         let mut book = create_orderbook();
-        let orders = vec![
-            MarketOrder::new(11, 400, Side::Ask),
-        ];
+        let orders = vec![MarketOrder::new(11, 400, Side::Ask)];
         for order in orders {
             book.execute(Operation::Market(order));
         }

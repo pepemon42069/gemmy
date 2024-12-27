@@ -1,3 +1,6 @@
+use crate::engine::services::orderbook_manager_service::OrderbookManager;
+use crate::engine::tasks::shutdown_task::Shutdown;
+use crate::engine::tasks::snapshot_task::Snapshot;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -5,9 +8,6 @@ use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tracing::info;
-use crate::engine::services::orderbook_manager_service::OrderbookManager;
-use crate::engine::tasks::shutdown_task::Shutdown;
-use crate::engine::tasks::snapshot_task::Snapshot;
 
 pub struct TaskManager {
     tasks: HashMap<&'static str, JoinHandle<()>>,
@@ -19,7 +19,9 @@ impl TaskManager {
         orderbook_manager: Arc<OrderbookManager>,
         snapshot_interval: Duration,
     ) -> Self {
-        let mut task_manager = TaskManager { tasks: HashMap::new() };
+        let mut task_manager = TaskManager {
+            tasks: HashMap::new(),
+        };
         task_manager.register("shutdown_task", {
             let shutdown_notify = Arc::clone(&shutdown_notification);
             async move {
@@ -30,7 +32,9 @@ impl TaskManager {
             let shutdown_notify = Arc::clone(&shutdown_notification);
             let manager = Arc::clone(&orderbook_manager);
             async move {
-                Snapshot::new(shutdown_notify, manager, snapshot_interval).run().await;
+                Snapshot::new(shutdown_notify, manager, snapshot_interval)
+                    .run()
+                    .await;
             }
         });
         task_manager
