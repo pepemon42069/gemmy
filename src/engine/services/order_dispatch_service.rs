@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use crate::core::models::{LimitOrder, MarketOrder, Operation, Side};
 use crate::protobuf::models::{CancelLimitOrderRequest, CreateLimitOrderRequest, CreateMarketOrderRequest, ModifyLimitOrderRequest, StringResponse};
-use crate::protobuf::{
-    services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer},
-};
+use crate::protobuf::services::order_dispatcher_server::{OrderDispatcher, OrderDispatcherServer};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tonic::{codegen::InterceptedService, Request, Response, Status};
