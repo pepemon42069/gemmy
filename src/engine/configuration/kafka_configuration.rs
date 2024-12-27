@@ -1,7 +1,10 @@
+use rdkafka::admin::AdminClient;
+use rdkafka::client::DefaultClientContext;
 use crate::engine::constants::property_loader::{KafkaAdminProperties, KafkaProducerProperties};
-use rdkafka::error::KafkaError;
+use rdkafka::error::{KafkaError, KafkaResult};
 use rdkafka::producer::FutureProducer;
 use rdkafka::ClientConfig;
+use rdkafka::config::FromClientConfig;
 
 pub struct KafkaConfiguration {
     pub kafka_admin_properties: KafkaAdminProperties,
@@ -35,5 +38,12 @@ impl KafkaConfiguration {
                 &self.kafka_producer_properties.delivery_timeout,
             )
             .create()
+    }
+
+    pub fn admin_client(&self) -> KafkaResult<AdminClient<DefaultClientContext>> {
+        AdminClient::from_config(
+            ClientConfig::new()
+                .set("bootstrap.servers", &self.kafka_admin_properties.kafka_broker_address)
+        )
     }
 }
