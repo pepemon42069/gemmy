@@ -204,27 +204,21 @@ impl OrderBook {
             Some((order, index)) => {
                 match order.side {
                     Side::Bid => {
-                        let mut bids = self.bid_side_book.iter().rev();
-                        let first = bids.next();
-                        if let Some((price, queue)) = first {
-                            if order.price == *price && queue.len() == 1 {
-                                self.max_bid = bids.next().map(|(price, _)| *price);
-                            }
-                        }
                         if let Some(order_queue) = self.bid_side_book.get_mut(&order.price) {
                             order_queue.retain(|i| index != *i);
+                            if order_queue.is_empty() {
+                                self.bid_side_book.remove(&order.price);
+                                self.max_bid = self.bid_side_book.keys().rev().next().cloned();
+                            }
                         }
                     }
                     Side::Ask => {
-                        let mut asks = self.ask_side_book.iter();
-                        let first = asks.next();
-                        if let Some((price, queue)) = first {
-                            if order.price == *price && queue.len() == 1 {
-                                self.min_ask = asks.next().map(|(price, _)| *price)
-                            }
-                        }
                         if let Some(order_queue) = self.ask_side_book.get_mut(&order.price) {
                             order_queue.retain(|i| index != *i);
+                            if order_queue.is_empty() {
+                                self.ask_side_book.remove(&order.price);
+                                self.min_ask = self.ask_side_book.keys().next().cloned();
+                            }
                         }
                     }
                 }
